@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/table';
 import { Search, UserPlus, Upload, ShieldAlert, Link2, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { AccessLog, TherapyContent, UserProfile } from '@/lib/types';
 import {
@@ -38,6 +38,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface AggregatedAccessLog extends AccessLog {
     patientName: string;
@@ -98,6 +99,7 @@ export default function AdminConsole() {
                 setAccessLogs(allLogs);
             } catch (error) {
                 console.error("Error fetching access logs:", error);
+                toast({ title: "Error", description: "Could not fetch access logs.", variant: "destructive" });
             } finally {
                 setLoadingLogs(false);
             }
@@ -111,6 +113,7 @@ export default function AdminConsole() {
                 setTherapyContent(contentList);
             } catch (error) {
                 console.error("Error fetching therapy content:", error);
+                toast({ title: "Error", description: "Could not fetch therapy content.", variant: "destructive" });
             } finally {
                 setLoadingContent(false);
             }
@@ -118,7 +121,7 @@ export default function AdminConsole() {
 
         fetchAccessLogs();
         fetchTherapyContent();
-    }, []);
+    }, [toast]);
 
   return (
     <>
@@ -154,8 +157,10 @@ export default function AdminConsole() {
                         </div>
                     </div>
                     {loadingLogs ? (
-                        <div className="flex justify-center items-center h-40">
-                            <Loader2 className="w-8 h-8 animate-spin" />
+                        <div className="grid gap-2">
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
                         </div>
                     ) : (
                     <Table>
@@ -205,8 +210,10 @@ export default function AdminConsole() {
                 </CardHeader>
                 <CardContent>
                     {loadingContent ? (
-                         <div className="flex justify-center items-center h-40">
-                            <Loader2 className="w-8 h-8 animate-spin" />
+                         <div className="grid gap-2">
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
+                           <Skeleton className="h-10 w-full" />
                         </div>
                     ) : (
                      <Table>
