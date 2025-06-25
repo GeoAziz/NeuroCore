@@ -1,4 +1,3 @@
-
 import type { Timestamp } from 'firebase/firestore';
 
 // --- Base and Role-Specific User Profiles ---
@@ -18,6 +17,7 @@ export type PatientProfile = BaseProfile & {
 export type DoctorProfile = BaseProfile & {
   role: 'doctor';
   specialty?: string;
+  patients: string[]; // List of patient UIDs
 }
 
 export type AdminProfile = BaseProfile & {
@@ -31,6 +31,8 @@ export type UserProfile = PatientProfile | DoctorProfile | AdminProfile;
 export interface PatientData {
   cognitiveHealthScore: number;
   moodTrackerData: MoodTrackerDataPoint[];
+  riskScore: number; // 0-100, higher is more at-risk
+  condition: string; // e.g., "General Anxiety Disorder"
 }
 
 export interface MoodTrackerDataPoint {
@@ -38,6 +40,19 @@ export interface MoodTrackerDataPoint {
   mood: number;
   stress: number;
 }
+
+// --- Top Level Collection Interfaces ---
+export interface Alert {
+    id: string;
+    patientId: string;
+    patientName: string;
+    doctorId: string;
+    type: 'Anomaly' | 'Flag' | 'Info';
+    message: string;
+    timestamp: Timestamp;
+    status: 'New' | 'Viewed';
+}
+
 
 // --- Subcollection Interfaces ---
 
@@ -73,7 +88,9 @@ export interface TherapyModule {
 }
 
 export interface Appointment {
-    id: string;
+    id:string;
+    patientId: string;
+    patientName?: string; // Denormalized for easy display
     doctorId: string;
     doctorName?: string; // Denormalized for easy display
     doctorAvatar?: string; // Denormalized
@@ -82,6 +99,14 @@ export interface Appointment {
     status: 'Scheduled' | 'Completed' | 'Cancelled';
     notes?: string;
     transcript?: { speaker: string, text: string, timestamp: number }[];
+}
+
+export interface SessionLog {
+    id: string;
+    type: string;
+    date: string;
+    duration: string;
+    result: string;
 }
 
 // Privacy settings, stored in the user document

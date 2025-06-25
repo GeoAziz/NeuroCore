@@ -27,7 +27,12 @@ import {
   Loader2,
   LineChart,
   Calendar,
-  FlaskConical
+  FlaskConical,
+  Users,
+  FileText,
+  Video,
+  Beaker,
+  ShieldAlert,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "../ui/button";
@@ -46,11 +51,16 @@ const patientMenuItems = [
 ];
 
 const doctorMenuItems = [
-    { href: "/doctor", label: "Patient Overview", icon: Stethoscope },
+    { href: "/doctor", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/doctor/patients", label: "Patient Directory", icon: Users },
+    { href: "/doctor/brain-scan-lab", label: "BrainScan Lab", icon: Beaker },
+    { href: "/doctor/cognitive-reports", label: "Cognitive Reports", icon: FileText },
+    { href: "/doctor/therapy-oversight", label: "Therapy Oversight", icon: BrainCircuit },
+    { href: "/doctor/consultations", label: "Live Consultations", icon: Video },
 ];
 
 const adminMenuItems = [
-    { href: "/admin", label: "Admin Console", icon: ShieldCheck },
+    { href: "/admin", label: "Admin Console", icon: ShieldAlert },
 ];
 
 
@@ -61,7 +71,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const [isInitializing, setIsInitializing] = useState(true);
 
   useEffect(() => {
-    const minDisplayTime = 3000;
+    // This effect ensures the splash screen is shown for a minimum duration.
+    const minDisplayTime = 2500;
     let isMounted = true; 
 
     if (!loading) {
@@ -84,14 +95,21 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
   useEffect(() => {
+    // This effect handles routing logic after initialization.
     if (isInitializing) return;
+    
+    // If not logged in and not on an auth page, redirect to login.
     if (!user && !isAuthPage) {
       router.push('/login');
     }
-    // Redirect base route to dashboard for patients
-    if (userProfile?.role === 'patient' && pathname === '/') {
-        // Already on dashboard, do nothing
+    
+    // Redirect to the correct dashboard after login.
+    if (userProfile && pathname === '/login') {
+        if (userProfile.role === 'doctor') router.push('/doctor');
+        else if (userProfile.role === 'admin') router.push('/admin');
+        else router.push('/');
     }
+
   }, [isInitializing, user, userProfile, isAuthPage, pathname, router]);
 
   if (isInitializing) {
@@ -102,18 +120,25 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
   
-  if (!user) {
+  if (!user || !userProfile) {
     return (
          <div className="flex items-center justify-center min-h-screen bg-background">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <p className="ml-2">Redirecting to login...</p>
+            <p className="ml-2">Loading user data...</p>
         </div>
     );
   }
   
   let availableMenuItems = patientMenuItems; // Default
-  if (userProfile?.role === 'doctor') availableMenuItems = doctorMenuItems;
-  if (userProfile?.role === 'admin') availableMenuItems = adminMenuItems;
+  let settingsUrl = '/settings';
+  if (userProfile?.role === 'doctor') {
+    availableMenuItems = doctorMenuItems;
+    settingsUrl = '/doctor/settings';
+  }
+  if (userProfile?.role === 'admin') {
+    availableMenuItems = adminMenuItems;
+    settingsUrl = '/settings'; // Admins can use the general settings page
+  }
 
 
   return (
@@ -154,8 +179,8 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4 flex flex-col gap-2">
           <SidebarMenu>
              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === '/settings'}>
-                    <Link href="/settings">
+                <SidebarMenuButton asChild isActive={pathname === settingsUrl}>
+                    <Link href={settingsUrl}>
                         <Settings />
                         <span>Settings</span>
                     </Link>
@@ -182,7 +207,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
              <div className="flex items-center gap-2">
                 <Avatar>
                     <AvatarImage src="https://placehold.co/40x40" />
-                    <AvatarFallback>{userProfile?.displayName?.charAt(0) ?? 'U'}</AvatarFallback>
+                    <AvatarFallback>{userProfile?.displayName?.charAt(0)?.toUpperCase() ?? 'U'}</AvatarFallback>
                 </Avatar>
                 <div>
                     <p className="text-sm font-medium">{userProfile?.displayName}</p>
@@ -190,7 +215,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                 </div>
             </div>
           </header>
-          <main className="flex-1 flex flex-col bg-background">
+          <main className="flex-1 flex flex-col bg-muted/40">
             {children}
           </main>
         </div>
