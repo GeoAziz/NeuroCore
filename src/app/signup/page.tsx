@@ -1,3 +1,4 @@
+
 'use client';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -14,7 +15,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Brain } from 'lucide-react';
-import type { UserProfile, PatientData, PrivacySettings } from '@/lib/types';
+import type { PatientProfile, PatientData, PrivacySettings } from '@/lib/types';
 
 const signupSchema = z.object({
   displayName: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -48,6 +49,7 @@ export default function SignupPage() {
         displayName: data.displayName,
       });
 
+      // Every new user is a patient by default and gets a full, default dashboard.
       const defaultPatientData: PatientData = {
         cognitionScore: { value: 0, change: 0 },
         mentalHealthGrade: 'N/A',
@@ -63,11 +65,12 @@ export default function SignupPage() {
         doctorAccess: {},
       };
 
-      const userProfile: UserProfile = {
+      // Use the new, type-safe PatientProfile
+      const userProfile: PatientProfile = {
         uid: user.uid,
         email: user.email,
         displayName: data.displayName,
-        role: 'patient', // Default role for new signups
+        role: 'patient',
         patientData: defaultPatientData,
         privacySettings: defaultPrivacySettings,
       };

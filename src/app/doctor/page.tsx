@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useTransition } from 'react';
@@ -12,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { BrainModel } from '@/components/shared/brain-model';
 import { EegChart } from '@/components/charts/eeg-chart';
-import { Search, Send, FileText, BrainCircuit, User, Bell, Loader2 } from 'lucide-react';
+import { Wand2, Send, FileText, BrainCircuit, User, Bell, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -27,7 +28,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/context/auth-context';
-import type { UserProfile, PatientData, SessionLog } from '@/lib/types';
+import type { UserProfile, PatientProfile, SessionLog } from '@/lib/types';
 import { generateAiNotesSummary } from '@/ai/flows/generate-ai-notes-summary';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -36,9 +37,9 @@ export default function DoctorView() {
   const { userProfile: doctorProfile } = useAuth();
   const { toast } = useToast();
 
-  const [patients, setPatients] = useState<UserProfile[]>([]);
+  const [patients, setPatients] = useState<PatientProfile[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
-  const [selectedPatient, setSelectedPatient] = useState<UserProfile | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<PatientProfile | null>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLog[]>([]);
   const [aiSummary, setAiSummary] = useState<string>('');
   
@@ -49,14 +50,20 @@ export default function DoctorView() {
   useEffect(() => {
     const fetchPatients = async () => {
       setLoadingPatients(true);
-      const q = query(collection(db, 'users'), where('role', '==', 'patient'));
-      const querySnapshot = await getDocs(q);
-      const patientList = querySnapshot.docs.map(doc => doc.data() as UserProfile);
-      setPatients(patientList);
-      setLoadingPatients(false);
+      try {
+        const q = query(collection(db, 'users'), where('role', '==', 'patient'));
+        const querySnapshot = await getDocs(q);
+        const patientList = querySnapshot.docs.map(doc => doc.data() as PatientProfile);
+        setPatients(patientList);
+      } catch (error) {
+        console.error("Error fetching patients:", error);
+        toast({ title: 'Error', description: 'Could not fetch patient list.', variant: 'destructive' });
+      } finally {
+        setLoadingPatients(false);
+      }
     };
     fetchPatients();
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!selectedPatientId) return;
@@ -67,13 +74,13 @@ export default function DoctorView() {
       try {
         const patientDocRef = doc(db, 'users', selectedPatientId);
         const patientDocSnap = await getDoc(patientDocRef);
-        if (patientDocSnap.exists()) {
-          setSelectedPatient(patientDocSnap.data() as UserProfile);
+        if (patientDocSnap.exists() && patientDocSnap.data().role === 'patient') {
+          setSelectedPatient(patientDocSnap.data() as PatientProfile);
         }
 
         const logsQuery = query(collection(db, `users/${selectedPatientId}/sessionLogs`));
         const logsSnapshot = await getDocs(logsQuery);
-        const logsData = logsSnapshot.docs.map(doc => doc.data() as SessionLog);
+        const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SessionLog));
         setSessionLogs(logsData);
       } catch (error) {
         console.error("Error fetching patient details:", error);
@@ -100,6 +107,15 @@ export default function DoctorView() {
       }
     });
   };
+  
+  if (doctorProfile?.role !== 'doctor') {
+    return (
+       <div className="flex-1 space-y-6 p-4 md:p-6 text-center">
+        <h1 className="text-3xl font-bold font-headline">Access Denied</h1>
+        <p className="text-muted-foreground">This page is for doctor accounts only.</p>
+      </div>
+    )
+  }
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">

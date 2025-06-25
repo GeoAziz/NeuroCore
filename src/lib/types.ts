@@ -1,15 +1,33 @@
 
 import type { Timestamp } from 'firebase/firestore';
 
-// Base user data
-export interface UserProfile {
+// --- Base and Role-Specific User Profiles ---
+
+// Using a discriminated union for UserProfile makes our code type-safe.
+// We can be sure that if a user has the role 'patient', they will have patientData.
+
+type BaseProfile = {
   uid: string;
   email: string | null;
   displayName: string | null;
-  role: 'patient' | 'doctor' | 'admin';
-  patientData?: PatientData;
-  privacySettings?: PrivacySettings;
 }
+
+export type PatientProfile = BaseProfile & {
+  role: 'patient';
+  patientData: PatientData;
+  privacySettings: PrivacySettings;
+}
+
+export type DoctorProfile = BaseProfile & {
+  role: 'doctor';
+}
+
+export type AdminProfile = BaseProfile & {
+  role: 'admin';
+}
+
+export type UserProfile = PatientProfile | DoctorProfile | AdminProfile;
+
 
 // Data specific to a patient, stored in their user document
 export interface PatientData {
@@ -49,7 +67,6 @@ export interface AccessLog {
   patientName?: string; // Used for aggregated views in Admin console
 }
 
-// Admin data - This is now represented by fetching from user subcollections or global collections
 export interface TherapyContent {
   id: string;
   name: string;

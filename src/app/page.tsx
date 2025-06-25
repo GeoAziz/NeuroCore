@@ -18,7 +18,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PatientDashboard() {
   const { userProfile, loading } = useAuth();
-  const patientData = userProfile?.patientData;
 
   if (loading) {
     return (
@@ -47,15 +46,20 @@ export default function PatientDashboard() {
     );
   }
 
-  if (!patientData) {
+  // With our new type-safe UserProfile, we can be sure that if the role is 'patient',
+  // the patientData object exists.
+  if (userProfile?.role !== 'patient') {
      return (
       <div className="flex-1 space-y-6 p-4 md:p-6 text-center">
         <h1 className="text-3xl font-bold font-headline">Welcome, {userProfile?.displayName}</h1>
-        <p className="text-muted-foreground">Your patient dashboard is being set up. Please check back later.</p>
-        <p className="text-sm text-muted-foreground">(This view is shown because your user role does not have patient data).</p>
+        <p className="text-muted-foreground">This is not a patient account.</p>
+        <p className="text-sm text-muted-foreground">(Please log in as a patient to view the dashboard or select your role from the sidebar).</p>
       </div>
     );
   }
+
+  // Now we can safely access patientData
+  const patientData = userProfile.patientData;
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
