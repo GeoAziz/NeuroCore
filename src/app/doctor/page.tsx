@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase/client';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import type { Alert, Appointment, NeuralScan, PatientProfile } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,53 +23,70 @@ export default function DoctorDashboard() {
   const [recentScans, setRecentScans] = useState<(NeuralScan & {patientName: string})[]>([]);
 
   useEffect(() => {
-    if (user && userProfile?.role === 'doctor') {
+    if (user && userProfile?.role === 'doctor' && userProfile.patients) {
       const fetchData = async () => {
         setLoading(true);
-        // Fetch Alerts
+        // Fetch Alerts for this doctor
         const alertsQuery = query(collection(db, 'alerts'), where('doctorId', '==', user.uid), orderBy('timestamp', 'desc'), limit(5));
         const alertsSnap = await getDocs(alertsQuery);
         setAlerts(alertsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Alert)));
 
-        // Fetch Today's Appointments
+        // Fetch Today's Appointments for assigned patients
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
         const todayEnd = new Date();
         todayEnd.setHours(23, 59, 59, 999);
-        const apptsQuery = query(
-            collection(db, 'appointments'),
-            where('doctorId', '==', user.uid),
-            where('date', '>=', todayStart),
-            where('date', '<=', todayEnd),
-            orderBy('date', 'asc')
-        );
-        const apptsSnap = await getDocs(apptsQuery);
-        setAppointments(apptsSnap.docs.map(doc => {
-            const data = doc.data();
-            return { id: doc.id, ...data } as Appointment;
-        }));
+        
+        const appointmentPromises = userProfile.patients.map(async (patientId) => {
+            const patientDoc = await getDoc(doc(db, 'users', patientId));
+            const patientName = patientDoc.exists() ? patientDoc.data().displayName : 'Unknown Patient';
 
-        // Fetch Recent Scans from all patients (simplified for prototype)
-        const patientsQuery = query(collection(db, 'users'), where('role', '==', 'patient'));
-        const patientsSnap = await getDocs(patientsQuery);
-        const scans: (NeuralScan & {patientName: string})[] = [];
-        for (const p of patientsSnap.docs) {
-            const patient = p.data() as PatientProfile;
-            const scansQuery = query(collection(db, `users/${patient.uid}/neural_scans`), orderBy('date', 'desc'), limit(1));
+            const apptsQuery = query(
+                collection(db, `users/${patientId}/appointments`),
+                where('date', '>=', todayStart),
+                where('date', '<=', todayEnd),
+                orderBy('date', 'asc')
+            );
+            const apptsSnap = await getDocs(apptsQuery);
+            return apptsSnap.docs.map(doc => ({
+                id: doc.id,
+                ...(doc.data() as Omit<Appointment, 'id'>),
+                patientName, // Add patient name
+            }));
+        });
+
+        const allAppointmentsNested = await Promise.all(appointmentPromises);
+        const allAppointmentsFlat = allAppointmentsNested.flat().sort((a, b) => a.date.seconds - b.date.seconds);
+        setAppointments(allAppointmentsFlat as Appointment[]);
+
+
+        // Fetch Recent Scans from assigned patients
+        const scanPromises = userProfile.patients.map(async (patientId) => {
+            const patientDoc = await getDoc(doc(db, 'users', patientId));
+            const patientName = patientDoc.exists() ? patientDoc.data().displayName : 'Unknown Patient';
+
+            const scansQuery = query(collection(db, `users/${patientId}/neural_scans`), orderBy('date', 'desc'), limit(1));
             const scanSnap = await getDocs(scansQuery);
             if (!scanSnap.empty) {
-                scans.push({
+                return {
                     ...scanSnap.docs[0].data(),
                     id: scanSnap.docs[0].id,
-                    patientName: patient.displayName ?? 'Unknown',
-                } as NeuralScan & {patientName: string});
+                    patientName,
+                } as NeuralScan & {patientName: string};
             }
-        }
-        setRecentScans(scans);
+            return null;
+        });
+
+        const allScans = (await Promise.all(scanPromises)).filter(scan => scan !== null);
+        setRecentScans(allScans as (NeuralScan & {patientName: string})[]);
+
 
         setLoading(false);
       };
       fetchData();
+    } else if (user && userProfile) {
+        // Not a doctor or no patients assigned
+        setLoading(false);
     }
   }, [user, userProfile]);
 

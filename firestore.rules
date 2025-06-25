@@ -1,0 +1,61 @@
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+  
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isDoctor() {
+      return isAuthenticated() && getRole() == 'doctor';
+    }
+
+    function isDoctorAssignedToPatient(patientId) {
+      // A doctor can access a patient's data if the patient's UID is in the doctor's 'patients' array.
+      let doctorData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+      return isDoctor() && patientId in doctorData.patients;
+    }
+
+    // Rules for the 'users' collection
+    match /users/{userId} {
+      // Authenticated users can read profiles (for names, avatars, etc.).
+      // Users can only create/update their own document.
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId);
+
+      // Rules for patient subcollections
+      match /{subcollection}/{docId} {
+        // Patients can read/write their own data.
+        // Assigned doctors can read their patients' data.
+        allow read: if isOwner(userId) || isDoctorAssignedToPatient(userId);
+        allow write: if isOwner(userId);
+      }
+    }
+    
+    // Rules for the 'alerts' collection
+    match /alerts/{alertId} {
+      // Doctors can read alerts assigned to them.
+      allow read: if isDoctor() && resource.data.doctorId == request.auth.uid;
+      // No one can write/delete alerts for now (they are system-generated)
+      allow write: if false; 
+    }
+    
+    // Therapy content is public for any logged-in user
+    match /therapyContent/{contentId} {
+      allow read: if isAuthenticated();
+      // Only admins should write content (not implemented, so lock it down)
+      allow write: if false;
+    }
+  }
+}
