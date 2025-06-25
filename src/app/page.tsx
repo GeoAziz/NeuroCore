@@ -1,3 +1,4 @@
+'use client';
 import {
   Card,
   CardContent,
@@ -8,11 +9,43 @@ import {
 import { Button } from '@/components/ui/button';
 import { MoodTrackerChart } from '@/components/charts/mood-tracker-chart';
 import { BrainModel } from '@/components/shared/brain-model';
-import { Activity, Zap, Brain, TrendingUp, NotebookText, User, Bell } from 'lucide-react';
+import { Activity, Zap, Brain, TrendingUp, NotebookText, Bell, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { useAuth } from '@/context/auth-context';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PatientDashboard() {
+  const { userProfile, loading } = useAuth();
+  const patientData = userProfile?.patientData;
+
+  if (loading || !patientData) {
+    return (
+        <div className="flex-1 space-y-6 p-4 md:p-6">
+            <div className="flex items-center justify-between">
+                <Skeleton className="h-9 w-64" />
+                <div className="flex items-center gap-4">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <Skeleton className="h-10 w-10 rounded-full" />
+                </div>
+            </div>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
+            </div>
+             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                <Skeleton className="lg:col-span-2 h-[480px]" />
+                <div className="space-y-6">
+                    <Skeleton className="h-64" />
+                    <Skeleton className="h-48" />
+                </div>
+            </div>
+        </div>
+    );
+  }
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
@@ -23,7 +56,7 @@ export default function PatientDashboard() {
           </Button>
           <Avatar>
             <AvatarImage src="https://placehold.co/40x40" />
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarFallback>{userProfile.displayName?.charAt(0)}</AvatarFallback>
           </Avatar>
         </div>
       </div>
@@ -37,8 +70,8 @@ export default function PatientDashboard() {
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">8.2/10</div>
-            <p className="text-xs text-muted-foreground">+2.1% from last month</p>
+            <div className="text-2xl font-bold">{patientData.cognitionScore.value}/10</div>
+            <p className="text-xs text-muted-foreground">+{patientData.cognitionScore.change}% from last month</p>
           </CardContent>
         </Card>
         <Card>
@@ -49,7 +82,7 @@ export default function PatientDashboard() {
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">B+</div>
+            <div className="text-2xl font-bold">{patientData.mentalHealthGrade}</div>
             <p className="text-xs text-muted-foreground">AI-Assessed</p>
           </CardContent>
         </Card>
@@ -59,7 +92,7 @@ export default function PatientDashboard() {
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">89%</div>
+            <div className="text-2xl font-bold">{patientData.sleepQuality}%</div>
             <p className="text-xs text-muted-foreground">Last night</p>
           </CardContent>
         </Card>
@@ -69,8 +102,8 @@ export default function PatientDashboard() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">Calm</div>
-            <p className="text-xs text-muted-foreground">AI Prediction: Stable</p>
+            <div className="text-2xl font-bold">{patientData.mood}</div>
+            <p className="text-xs text-muted-foreground">AI Prediction: {patientData.moodPrediction}</p>
           </CardContent>
         </Card>
       </div>
