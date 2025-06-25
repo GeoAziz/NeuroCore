@@ -21,41 +21,80 @@ import {
 } from '@/components/ui/table';
 import { Search, UserPlus, Upload, ShieldAlert, Link2, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { collection, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { AccessLog, TherapyContent, UserProfile } from '@/lib/types';
-
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+    DialogClose,
+} from '@/components/ui/dialog';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { useToast } from '@/hooks/use-toast';
 
 interface AggregatedAccessLog extends AccessLog {
     patientName: string;
 }
 
+const addDoctorSchema = z.object({
+    displayName: z.string().min(2, 'Name is required'),
+    email: z.string().email('Invalid email address'),
+    password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+type AddDoctorFormValues = z.infer<typeof addDoctorSchema>;
+
 export default function AdminConsole() {
+    const { toast } = useToast();
     const [accessLogs, setAccessLogs] = useState<AggregatedAccessLog[]>([]);
     const [therapyContent, setTherapyContent] = useState<TherapyContent[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(true);
     const [loadingContent, setLoadingContent] = useState(true);
+    const [isAddDoctorOpen, setIsAddDoctorOpen] = useState(false);
+
+    const form = useForm<AddDoctorFormValues>({
+        resolver: zodResolver(addDoctorSchema),
+        defaultValues: {
+            displayName: '',
+            email: '',
+            password: '',
+        },
+    });
+    
+    const onAddDoctorSubmit = (data: AddDoctorFormValues) => {
+        // In a real application, this would call a secure backend function (e.g., a Cloud Function)
+        // that uses the Firebase Admin SDK to create a new user and set their role.
+        // We are simulating this for the prototype.
+        console.log('New Doctor Data:', data);
+        toast({
+            title: 'Action Required',
+            description: 'Creating users requires a secure backend. This functionality is for demonstration. Check the console for the submitted data.',
+            duration: 5000
+        });
+        setIsAddDoctorOpen(false);
+        form.reset();
+    };
 
     useEffect(() => {
         const fetchAccessLogs = async () => {
             setLoadingLogs(true);
             try {
-                // This is an example of client-side aggregation.
-                // For production, this should be done with a backend/Cloud Function for efficiency and security.
                 const usersSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'patient')));
-                const patientIds = usersSnapshot.docs.map(doc => ({id: doc.id, name: doc.data().displayName || 'Unknown Patient'}));
-                
                 const allLogs: AggregatedAccessLog[] = [];
-                
-                const logPromises = patientIds.map(async (patient) => {
-                    const logsSnapshot = await getDocs(collection(db, `users/${patient.id}/accessLogs`));
-                    logsSnapshot.forEach(doc => {
-                        allLogs.push({ ...doc.data() as AccessLog, patientName: patient.name });
+                for (const userDoc of usersSnapshot.docs) {
+                    const patient = userDoc.data() as UserProfile;
+                    const logsSnapshot = await getDocs(collection(db, `users/${patient.uid}/accessLogs`));
+                    logsSnapshot.forEach(logDoc => {
+                        allLogs.push({ ...logDoc.data() as AccessLog, id: logDoc.id, patientName: patient.displayName || 'Unknown Patient' });
                     });
-                });
-
-                await Promise.all(logPromises);
-                
+                }
                 setAccessLogs(allLogs);
             } catch (error) {
                 console.error("Error fetching access logs:", error);
@@ -82,11 +121,12 @@ export default function AdminConsole() {
     }, []);
 
   return (
+    <>
     <div className="flex-1 space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold font-headline">Admin Console</h1>
         <div className="flex items-center gap-4">
-             <Button disabled>
+             <Button onClick={() => setIsAddDoctorOpen(true)}>
                 <UserPlus className="w-4 h-4 mr-2"/>
                 Add New Doctor
              </Button>
@@ -198,7 +238,7 @@ export default function AdminConsole() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline"><ShieldAlert className='text-destructive' /> Anomaly Reports</CardTitle>
                     <CardDescription>AI-detected abnormal system behavior and potential security threats.</CardDescription>
-                </CardHeader>
+                </Header>
                 <CardContent className="text-center py-20">
                     <p className="text-muted-foreground">No anomalies detected in the last 24 hours.</p>
                 </CardContent>
@@ -218,5 +258,69 @@ export default function AdminConsole() {
         </TabsContent>
       </Tabs>
     </div>
+
+    <Dialog open={isAddDoctorOpen} onOpenChange={setIsAddDoctorOpen}>
+        <DialogContent>
+            <DialogHeader>
+                <DialogTitle>Add New Doctor</DialogTitle>
+                <DialogDescription>
+                    Create a new doctor account. They will be sent an invitation to set up their profile.
+                </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+                <form onSubmit={form.handleSubmit(onAddDoctorSubmit)} className="space-y-4">
+                    <FormField
+                        control={form.control}
+                        name="displayName"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Dr. Anya Sharma" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="email"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Email</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="doctor@neurocore.dev" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Temporary Password</FormLabel>
+                                <FormControl>
+                                    <Input type="password" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <DialogFooter>
+                        <DialogClose asChild>
+                            <Button type="button" variant="secondary">Cancel</Button>
+                        </DialogClose>
+                        <Button type="submit" disabled={form.formState.isSubmitting}>
+                            {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Create Doctor
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </Form>
+        </DialogContent>
+    </Dialog>
+    </>
   );
 }
