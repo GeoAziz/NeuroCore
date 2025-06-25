@@ -1,180 +1,198 @@
 
 'use client';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { MoodTrackerChart } from '@/components/charts/mood-tracker-chart';
-import { BrainModel } from '@/components/shared/brain-model';
-import { Activity, Zap, Brain, TrendingUp, NotebookText, Bell, Loader2 } from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import { useAuth } from '@/context/auth-context';
-import { Skeleton } from '@/components/ui/skeleton';
 
-export default function PatientDashboard() {
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/context/auth-context';
+import { db } from '@/lib/firebase/client';
+import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import type { PatientProfile, Appointment, NeuralScan } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Brain, Calendar, BarChart4, Bot } from 'lucide-react';
+import { BrainModel } from '@/components/shared/brain-model';
+import { MoodTrackerChart } from '@/components/charts/mood-tracker-chart';
+import { CognitiveScoreGauge } from '@/components/charts/cognitive-score-gauge';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+
+export default function NeuroDashboard() {
   const { userProfile, loading } = useAuth();
+  const [latestScan, setLatestScan] = useState<NeuralScan | null>(null);
+  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
+
+  useEffect(() => {
+    if (userProfile?.role === 'patient') {
+      const fetchData = async () => {
+        setLoadingData(true);
+        const userId = userProfile.uid;
+
+        // Fetch latest scan
+        const scansQuery = query(collection(db, `users/${userId}/neural_scans`), orderBy('date', 'desc'), limit(1));
+        const scansSnap = await getDocs(scansQuery);
+        if (!scansSnap.empty) {
+          setLatestScan({ id: scansSnap.docs[0].id, ...scansSnap.docs[0].data() } as NeuralScan);
+        }
+
+        // Fetch next appointment
+        const appointmentsQuery = query(collection(db, `users/${userId}/appointments`), where('status', '==', 'Scheduled'), orderBy('date', 'asc'), limit(1));
+        const appointmentsSnap = await getDocs(appointmentsQuery);
+        if (!appointmentsSnap.empty) {
+          const apptData = appointmentsSnap.docs[0].data();
+          const doctorSnap = await getDoc(doc(db, 'users', apptData.doctorId));
+          setNextAppointment({
+              id: appointmentsSnap.docs[0].id,
+              ...apptData,
+              doctorName: doctorSnap.exists() ? doctorSnap.data().displayName : 'Unknown Doctor'
+          } as Appointment);
+        }
+        setLoadingData(false);
+      };
+      fetchData();
+    }
+  }, [userProfile]);
 
   if (loading) {
-    return (
-        <div className="flex-1 space-y-6 p-4 md:p-6">
-            <div className="flex items-center justify-between">
-                <Skeleton className="h-9 w-64" />
-                <div className="flex items-center gap-4">
-                    <Skeleton className="h-8 w-8 rounded-full" />
-                    <Skeleton className="h-10 w-10 rounded-full" />
-                </div>
-            </div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
-                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
-                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
-                <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-8 w-32" /></CardContent></Card>
-            </div>
-             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                <Skeleton className="lg:col-span-2 h-[480px]" />
-                <div className="space-y-6">
-                    <Skeleton className="h-64" />
-                    <Skeleton className="h-48" />
-                </div>
-            </div>
-        </div>
-    );
+    return <DashboardSkeleton />;
   }
 
-  // With our new type-safe UserProfile, we can be sure that if the role is 'patient',
-  // the patientData object exists.
   if (userProfile?.role !== 'patient') {
-     return (
+    return (
       <div className="flex-1 space-y-6 p-4 md:p-6 text-center">
         <h1 className="text-3xl font-bold font-headline">Welcome, {userProfile?.displayName}</h1>
-        <p className="text-muted-foreground">This is not a patient account.</p>
-        <p className="text-sm text-muted-foreground">(Please log in as a patient to view the dashboard or select your role from the sidebar).</p>
+        <p className="text-muted-foreground">This view is for patient accounts. Please select your role from the sidebar if available.</p>
       </div>
     );
   }
 
-  // Now we can safely access patientData
-  const patientData = userProfile.patientData;
+  const { patientData } = userProfile;
+  const nextApptDate = nextAppointment?.date ? new Date(nextAppointment.date.seconds * 1000) : null;
+
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-headline">Patient Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon">
-            <Bell className="h-5 w-5" />
-          </Button>
-          <Avatar>
-            <AvatarImage src="https://placehold.co/40x40" />
-            <AvatarFallback>{userProfile.displayName?.charAt(0)}</AvatarFallback>
-          </Avatar>
-        </div>
-      </div>
+      <h1 className="text-3xl font-bold font-headline">Neuro_Dashboard</h1>
       
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cognitive Health</CardTitle>
+            <Bot className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col items-center justify-center">
+            <CognitiveScoreGauge score={patientData.cognitiveHealthScore} />
+            <p className="text-xs text-muted-foreground mt-2">AI-Assessed Score</p>
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Cognition Score
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Latest BrainScan</CardTitle>
             <Brain className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{patientData.cognitionScore.value}/10</div>
-            <p className="text-xs text-muted-foreground">+{patientData.cognitionScore.change}% from last month</p>
+            <div className="relative aspect-square w-full rounded-md overflow-hidden mt-2">
+                <BrainModel isInteractive={false} />
+            </div>
+             <Button variant="outline" size="sm" className="w-full mt-4" asChild>
+                <Link href="/brain-scan">View Full Scan</Link>
+             </Button>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Mental Health Grade
-            </CardTitle>
-            <Zap className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Next Appointment</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{patientData.mentalHealthGrade}</div>
-            <p className="text-xs text-muted-foreground">AI-Assessed</p>
+          <CardContent className='pt-4'>
+            {nextApptDate ? (
+                 <div className="space-y-2">
+                    <p className="text-lg font-bold">{nextApptDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                    <p className="text-sm text-muted-foreground">{nextApptDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-sm font-medium">with {nextAppointment?.doctorName}</p>
+                    <p className="text-xs text-muted-foreground pt-1">{nextAppointment?.purpose}</p>
+                    <Button variant="secondary" size="sm" className="w-full mt-2" asChild>
+                       <Link href="/consultations">Manage</Link>
+                    </Button>
+                </div>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center pt-10">No upcoming appointments.</p>
+            )}
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sleep Quality</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Cognitive Progress</CardTitle>
+            <BarChart4 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{patientData.sleepQuality}%</div>
-            <p className="text-xs text-muted-foreground">Last night</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mood</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{patientData.mood}</div>
-            <p className="text-xs text-muted-foreground">AI Prediction: {patientData.moodPrediction}</p>
+          <CardContent className='h-[200px] -ml-2 -mr-4'>
+             <MoodTrackerChart data={patientData.moodTrackerData} loading={loading || loadingData}/>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="font-headline">3D Brain Model</CardTitle>
-            <CardDescription>
-              Interactive neural model. Click regions for activity info.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-[400px]">
-            <BrainModel />
-          </CardContent>
-        </Card>
-        <div className="space-y-6">
-          <Card>
+       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="font-headline">Therapy Sessions</CardTitle>
+                <CardTitle className="font-headline">Therapy Hub</CardTitle>
+                <CardDescription>Continue your assigned neural therapy programs.</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col gap-4">
-              <Button size="lg" className="w-full justify-start">Start: Focus Gym</Button>
-              <Button size="lg" variant="secondary" className="w-full justify-start">Start: Sleep Scape</Button>
-              <Button size="lg" variant="secondary" className="w-full justify-start">Start: Calm Room</Button>
-              <Button variant="outline" className="w-full">Schedule Mental Checkup</Button>
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <TherapyProgramCard program="Mindful VR" progress={75} />
+                 <TherapyProgramCard program="Guided Audio" progress={40} />
+                 <TherapyProgramCard program="Biofeedback" progress={90} />
             </CardContent>
           </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-headline flex items-center gap-2">
-                <NotebookText className="h-5 w-5" />
-                Doctor Notes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">
-                "Patient shows improvement in stress response. Continue with weekly Calm Room sessions. Re-evaluate in one month."
-              </p>
-              <Button variant="link" className="p-0 mt-2">
-                View all notes
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle className="font-headline">Mood Tracker Timeline</CardTitle>
-          <CardDescription>Weekly mood states and stress levels. <Badge variant="destructive" className="ml-2 animate-pulse">AI Alert: Burnout Imminent</Badge></CardDescription>
-        </CardHeader>
-        <CardContent className="h-80">
-          <MoodTrackerChart data={patientData.moodTrackerData} loading={loading} />
-        </CardContent>
-      </Card>
+           <Card>
+              <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                  AI Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  "Your focus metrics have improved by 12% after consistent Focus Gym sessions. Consider exploring the Memory Maze next to challenge recall abilities."
+                </p>
+                <Button variant="link" className="p-0 mt-2">
+                  View all insights
+                </Button>
+              </CardContent>
+            </Card>
+       </div>
     </div>
   );
+}
+
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex-1 space-y-6 p-4 md:p-6">
+        <Skeleton className="h-9 w-64" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Skeleton className="lg:col-span-2 h-48" />
+            <Skeleton className="h-48" />
+        </div>
+    </div>
+  );
+}
+
+function TherapyProgramCard({ program, progress }: { program: string; progress: number }) {
+    return (
+        <Card className='hover:bg-muted/50 transition-colors'>
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <p className="font-semibold">{program}</p>
+                <div className="w-16 h-16 my-3 rounded-full bg-muted flex items-center justify-center">
+                    <p className="text-primary font-bold text-lg">{progress}%</p>
+                </div>
+                 <Button variant="secondary" size="sm" className="w-full" asChild>
+                    <Link href="/therapy-hub">Continue</Link>
+                </Button>
+            </CardContent>
+        </Card>
+    );
 }

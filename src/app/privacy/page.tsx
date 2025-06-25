@@ -1,240 +1,197 @@
 'use client';
+
 import { useEffect, useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Shield, Lock, Unlock, Eye, ListCollapse, UserX, Loader2 } from 'lucide-react';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase/client';
-import { doc, getDoc, updateDoc, collection, getDocs, query } from 'firebase/firestore';
-import type { PrivacySettings, AccessLog } from '@/lib/types';
-import { useToast } from '@/hooks/use-toast';
+import { collection, query, orderBy, limit, getDocs, doc, getDoc } from 'firebase/firestore';
+import type { PatientProfile, Appointment, NeuralScan } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Brain, Calendar, BarChart4, Bot } from 'lucide-react';
+import { BrainModel } from '@/components/shared/brain-model';
+import { MoodTrackerChart } from '@/components/charts/mood-tracker-chart';
+import { CognitiveScoreGauge } from '@/components/charts/cognitive-score-gauge';
+import { Button } from '@/components/ui/button';
+import Link from 'next/link';
 
+export default function NeuroDashboard() {
+  const { userProfile, loading } = useAuth();
+  const [latestScan, setLatestScan] = useState<NeuralScan | null>(null);
+  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
+  const [loadingData, setLoadingData] = useState(true);
 
-export default function PrivacyConsole() {
-    const { user } = useAuth();
-    const { toast } = useToast();
-    const [settings, setSettings] = useState<PrivacySettings | null>(null);
-    const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
-    const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (userProfile?.role === 'patient') {
+      const fetchData = async () => {
+        setLoadingData(true);
+        const userId = userProfile.uid;
 
-    useEffect(() => {
-        if (!user) {
-            setLoading(false);
-            return;
-        };
-
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                // Fetch privacy settings once
-                const userDocRef = doc(db, 'users', user.uid);
-                const userDocSnap = await getDoc(userDocRef);
-                if (userDocSnap.exists()) {
-                    setSettings(userDocSnap.data().privacySettings as PrivacySettings);
-                } else {
-                    setSettings(null);
-                }
-
-                // Fetch access logs once
-                const logsQuery = query(collection(db, `users/${user.uid}/accessLogs`));
-                const logsSnapshot = await getDocs(logsQuery);
-                const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccessLog));
-                setAccessLogs(logsData);
-            } catch (error) {
-                console.error("Error fetching privacy data:", error);
-                toast({ title: "Error", description: "Could not load privacy data.", variant: "destructive" });
-            } finally {
-                setLoading(false);
-            }
-        };
-        
-        fetchData();
-
-    }, [user, toast]);
-
-    const handleSettingChange = async (key: keyof PrivacySettings, value: boolean) => {
-        if (!user || !settings) return;
-
-        const newSettings = { ...settings, [key]: value };
-        setSettings(newSettings); // Optimistic update
-
-        try {
-            const userDocRef = doc(db, 'users', user.uid);
-            await updateDoc(userDocRef, {
-                [`privacySettings.${key}`]: value
-            });
-            toast({ title: 'Success', description: 'Privacy setting updated.' });
-        } catch (error) {
-            console.error("Error updating setting:", error);
-            setSettings(settings); // Revert on error
-            toast({ title: 'Error', description: 'Failed to update setting.', variant: 'destructive' });
+        // Fetch latest scan
+        const scansQuery = query(collection(db, `users/${userId}/neural_scans`), orderBy('date', 'desc'), limit(1));
+        const scansSnap = await getDocs(scansQuery);
+        if (!scansSnap.empty) {
+          setLatestScan({ id: scansSnap.docs[0].id, ...scansSnap.docs[0].data() } as NeuralScan);
         }
-    };
-    
-    if (loading) {
-        return (
-             <div className="flex-1 space-y-6 p-4 md:p-6">
-                <div className="flex items-center justify-between">
-                    <Skeleton className="h-9 w-96" />
-                    <Skeleton className="h-9 w-40" />
-                </div>
-                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                    <div className="lg:col-span-2 space-y-6">
-                        <Skeleton className="h-80 w-full" />
-                        <Skeleton className="h-96 w-full" />
-                    </div>
-                     <Skeleton className="h-96 w-full" />
-                </div>
-            </div>
-        )
+
+        // Fetch next appointment
+        const appointmentsQuery = query(collection(db, `users/${userId}/appointments`), where('status', '==', 'Scheduled'), orderBy('date', 'asc'), limit(1));
+        const appointmentsSnap = await getDocs(appointmentsQuery);
+        if (!appointmentsSnap.empty) {
+          const apptData = appointmentsSnap.docs[0].data();
+          const doctorSnap = await getDoc(doc(db, 'users', apptData.doctorId));
+          setNextAppointment({
+              id: appointmentsSnap.docs[0].id,
+              ...apptData,
+              doctorName: doctorSnap.exists() ? doctorSnap.data().displayName : 'Unknown Doctor'
+          } as Appointment);
+        }
+        setLoadingData(false);
+      };
+      fetchData();
     }
+  }, [userProfile]);
+
+  if (loading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (userProfile?.role !== 'patient') {
+    return (
+      <div className="flex-1 space-y-6 p-4 md:p-6 text-center">
+        <h1 className="text-3xl font-bold font-headline">Welcome, {userProfile?.displayName}</h1>
+        <p className="text-muted-foreground">This view is for patient accounts. Please select your role from the sidebar if available.</p>
+      </div>
+    );
+  }
+
+  const { patientData } = userProfile;
+  const nextApptDate = nextAppointment?.date ? new Date(nextAppointment.date.seconds * 1000) : null;
+
 
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
-       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold font-headline">Privacy & MindLock Console</h1>
-        <Badge variant="destructive" className="text-base animate-pulse">
-            <Shield className="w-4 h-4 mr-2"/>
-            MindLock Active
-        </Badge>
-       </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">Access Controls</CardTitle>
-                    <CardDescription>Manage who can view your mental data and under what circumstances.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div>
-                            <Label htmlFor="therapymode" className="font-semibold">Live Therapy Mode</Label>
-                            <p className="text-xs text-muted-foreground">Allow live mental data streaming during sessions.</p>
-                        </div>
-                        <Switch id="therapymode" checked={settings?.liveTherapyMode} onCheckedChange={(checked) => handleSettingChange('liveTherapyMode', checked)} />
-                    </div>
-                     <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div>
-                            <Label htmlFor="research" className="font-semibold">Anonymized Research</Label>
-                            <p className="text-xs text-muted-foreground">Contribute anonymized data to neuroscience research.</p>
-                        </div>
-                        <Switch id="research" checked={settings?.anonymizedResearch} onCheckedChange={(checked) => handleSettingChange('anonymizedResearch', checked)} />
-                    </div>
-                     {settings?.doctorAccess && Object.keys(settings.doctorAccess).map(doctorId => (
-                         <div key={doctorId} className="flex items-center justify-between rounded-lg border p-4">
-                            <div>
-                                <Label htmlFor={`doctor-access-${doctorId}`} className="font-semibold">Doctor Access</Label>
-                                <p className="text-xs text-muted-foreground">Allow access for primary neurospecialist.</p>
-                            </div>
-                            <Switch id={`doctor-access-${doctorId}`} checked={settings.doctorAccess[doctorId]} disabled />
-                        </div>
-                     ))}
-                </CardContent>
-                <CardFooter>
-                    <Button variant="outline" disabled>
-                        <ListCollapse className="w-4 h-4 mr-2" />
-                        Manage All Permissions
+      <h1 className="text-3xl font-bold font-headline">Neuro_Dashboard</h1>
+      
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="flex flex-col">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cognitive Health</CardTitle>
+            <Bot className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className="flex-1 flex flex-col items-center justify-center">
+            <CognitiveScoreGauge score={patientData.cognitiveHealthScore} />
+            <p className="text-xs text-muted-foreground mt-2">AI-Assessed Score</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Latest BrainScan</CardTitle>
+            <Brain className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="relative aspect-square w-full rounded-md overflow-hidden mt-2">
+                <BrainModel isInteractive={false} />
+            </div>
+             <Button variant="outline" size="sm" className="w-full mt-4" asChild>
+                <Link href="/brain-scan">View Full Scan</Link>
+             </Button>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Next Appointment</CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className='pt-4'>
+            {nextApptDate ? (
+                 <div className="space-y-2">
+                    <p className="text-lg font-bold">{nextApptDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</p>
+                    <p className="text-sm text-muted-foreground">{nextApptDate.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p className="text-sm font-medium">with {nextAppointment?.doctorName}</p>
+                    <p className="text-xs text-muted-foreground pt-1">{nextAppointment?.purpose}</p>
+                    <Button variant="secondary" size="sm" className="w-full mt-2" asChild>
+                       <Link href="/consultations">Manage</Link>
                     </Button>
-                </CardFooter>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle className="font-headline">Shared Sessions Log</CardTitle>
-                    <CardDescription>Record of who has accessed your mental data.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Viewer</TableHead>
-                                <TableHead>Action</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">Action</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {accessLogs.map((log) => (
-                                <TableRow key={log.id}>
-                                    <TableCell className="font-medium">{log.viewer}</TableCell>
-                                    <TableCell>{log.action}</TableCell>
-                                    <TableCell>{log.date}</TableCell>
-                                    <TableCell>
-                                         <Badge variant={log.status === 'Violation' ? 'destructive' : 'secondary'}>{log.status}</Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive-foreground hover:bg-destructive" disabled>
-                                        <UserX className="w-4 h-4 mr-2" />
-                                        Revoke
-                                    </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-        </div>
-
-        <Card className="h-fit">
-            <CardHeader>
-                 <CardTitle className="font-headline flex items-center gap-2">
-                    <Lock className="w-5 h-5" />
-                    Emotional Unlock
-                </CardTitle>
-                <CardDescription>
-                    Create a custom "MindLock" that only allows data access when a specific emotional state is detected.
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <div>
-                    <Label>Unlock Trigger</Label>
-                    <p className="text-sm text-muted-foreground">Data is locked. Access will be granted if AI detects a 'panic' state.</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" className="text-2xl">😢</Button>
-                    <Button variant="outline" className="text-2xl">😱</Button>
-                    <Button variant="secondary" className="text-2xl">😰</Button>
-                    <Button variant="outline" className="text-2xl">😥</Button>
-                </div>
-                 <div>
-                    <Label>Target Data</Label>
-                    <p className="text-sm text-muted-foreground">Trauma files, past session logs.</p>
-                </div>
-                 <div>
-                    <Label>Expiration</Label>
-                    <p className="text-sm text-muted-foreground">Lock auto-renews every 24 hours.</p>
-                </div>
-            </CardContent>
-            <CardFooter>
-                 <Button className="w-full" disabled>
-                    <Unlock className="w-4 h-4 mr-2" />
-                    Configure New Lock
-                </Button>
-            </CardFooter>
+            ) : (
+                <p className="text-sm text-muted-foreground text-center pt-10">No upcoming appointments.</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cognitive Progress</CardTitle>
+            <BarChart4 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent className='h-[200px] -ml-2 -mr-4'>
+             <MoodTrackerChart data={patientData.moodTrackerData} loading={loading || loadingData}/>
+          </CardContent>
         </Card>
       </div>
+
+       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <Card className="lg:col-span-2">
+            <CardHeader>
+                <CardTitle className="font-headline">Therapy Hub</CardTitle>
+                <CardDescription>Continue your assigned neural therapy programs.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                 <TherapyProgramCard program="Mindful VR" progress={75} />
+                 <TherapyProgramCard program="Guided Audio" progress={40} />
+                 <TherapyProgramCard program="Biofeedback" progress={90} />
+            </CardContent>
+          </Card>
+           <Card>
+              <CardHeader>
+                <CardTitle className="font-headline flex items-center gap-2">
+                  AI Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  "Your focus metrics have improved by 12% after consistent Focus Gym sessions. Consider exploring the Memory Maze next to challenge recall abilities."
+                </p>
+                <Button variant="link" className="p-0 mt-2">
+                  View all insights
+                </Button>
+              </CardContent>
+            </Card>
+       </div>
     </div>
   );
+}
+
+
+function DashboardSkeleton() {
+  return (
+    <div className="flex-1 space-y-6 p-4 md:p-6">
+        <Skeleton className="h-9 w-64" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+            <Card><CardHeader><Skeleton className="h-5 w-24" /></CardHeader><CardContent><Skeleton className="h-32 w-full" /></CardContent></Card>
+        </div>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <Skeleton className="lg:col-span-2 h-48" />
+            <Skeleton className="h-48" />
+        </div>
+    </div>
+  );
+}
+
+function TherapyProgramCard({ program, progress }: { program: string; progress: number }) {
+    return (
+        <Card className='hover:bg-muted/50 transition-colors'>
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+                <p className="font-semibold">{program}</p>
+                <div className="w-16 h-16 my-3 rounded-full bg-muted flex items-center justify-center">
+                    <p className="text-primary font-bold text-lg">{progress}%</p>
+                </div>
+                 <Button variant="secondary" size="sm" className="w-full" asChild>
+                    <Link href="/therapy-hub">Continue</Link>
+                </Button>
+            </CardContent>
+        </Card>
+    );
 }

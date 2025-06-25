@@ -20,13 +20,14 @@ import {
   LayoutDashboard,
   Stethoscope,
   BrainCircuit,
-  LockKeyhole,
-  Activity,
   ShieldCheck,
   Brain,
   LogOut,
   Settings,
   Loader2,
+  LineChart,
+  Calendar,
+  FlaskConical
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "../ui/button";
@@ -36,14 +37,22 @@ import { signOut } from "firebase/auth";
 import React, { useEffect, useState } from 'react';
 import { SplashScreen } from "../shared/splash-screen";
 
-const menuItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ['patient'] },
-  { href: "/doctor", label: "Doctor View", icon: Stethoscope, roles: ['doctor'] },
-  { href: "/therapy", label: "Therapy Center", icon: BrainCircuit, roles: ['patient', 'doctor'] },
-  { href: "/privacy", label: "Privacy", icon: LockKeyhole, roles: ['patient'] },
-  { href: "/analytics", label: "Analytics", icon: Activity, roles: ['patient', 'doctor'] },
-  { href: "/admin", label: "Admin", icon: ShieldCheck, roles: ['admin'] },
+const patientMenuItems = [
+  { href: "/", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/brain-scan", label: "BrainScan Viewer", icon: Brain },
+  { href: "/cognitive-tracker", label: "Cognitive Tracker", icon: LineChart },
+  { href: "/therapy-hub", label: "Therapy Hub", icon: FlaskConical },
+  { href: "/consultations", label: "Consultations", icon: Calendar },
 ];
+
+const doctorMenuItems = [
+    { href: "/doctor", label: "Patient Overview", icon: Stethoscope },
+];
+
+const adminMenuItems = [
+    { href: "/admin", label: "Admin Console", icon: ShieldCheck },
+];
+
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -51,28 +60,20 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const { user, userProfile, loading } = useAuth();
   const [isInitializing, setIsInitializing] = useState(true);
 
-  // This effect manages the splash screen visibility.
-  // It ensures the splash is shown for a minimum duration and while auth is loading.
   useEffect(() => {
-    const minDisplayTime = 3000; // 3 seconds
-    
-    // We use a flag to check if the component is still mounted.
+    const minDisplayTime = 3000;
     let isMounted = true; 
 
-    // If auth state is resolved
     if (!loading) {
       const timer = setTimeout(() => {
-        if(isMounted) {
-          setIsInitializing(false);
-        }
+        if(isMounted) setIsInitializing(false);
       }, minDisplayTime);
 
       return () => {
         isMounted = false;
-        clearTimeout(timer)
+        clearTimeout(timer);
       };
     }
-    // If still loading, the effect will re-run when loading becomes false.
   }, [loading]);
 
   const handleLogout = async () => {
@@ -82,27 +83,25 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
-  // This effect handles redirection after initialization is complete.
   useEffect(() => {
-    if (isInitializing) return; // Don't redirect while splash is showing
-
+    if (isInitializing) return;
     if (!user && !isAuthPage) {
       router.push('/login');
     }
-  }, [isInitializing, user, isAuthPage, router]);
+    // Redirect base route to dashboard for patients
+    if (userProfile?.role === 'patient' && pathname === '/') {
+        // Already on dashboard, do nothing
+    }
+  }, [isInitializing, user, userProfile, isAuthPage, pathname, router]);
 
-  // Show splash screen during initialization
   if (isInitializing) {
     return <SplashScreen />;
   }
 
-  // Show auth pages without the main layout
   if (isAuthPage) {
     return <>{children}</>;
   }
   
-  // This is a fallback case if the redirect effect hasn't fired yet
-  // or if the user gets un-authed after initialization.
   if (!user) {
     return (
          <div className="flex items-center justify-center min-h-screen bg-background">
@@ -112,7 +111,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     );
   }
   
-  const availableMenuItems = menuItems.filter(item => userProfile?.role && item.roles.includes(userProfile.role));
+  let availableMenuItems = patientMenuItems; // Default
+  if (userProfile?.role === 'doctor') availableMenuItems = doctorMenuItems;
+  if (userProfile?.role === 'admin') availableMenuItems = adminMenuItems;
+
 
   return (
     <SidebarProvider>
@@ -120,7 +122,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="icon" className="shrink-0 text-primary">
-                <Brain className="w-7 h-7" />
+                <BrainCircuit className="w-7 h-7" />
             </Button>
             <h1 className="text-2xl font-bold font-headline text-foreground">NeuroCore</h1>
           </div>
@@ -152,9 +154,11 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
         <SidebarFooter className="p-4 flex flex-col gap-2">
           <SidebarMenu>
              <SidebarMenuItem>
-                <SidebarMenuButton>
-                    <Settings />
-                    <span>Settings</span>
+                <SidebarMenuButton asChild isActive={pathname === '/settings'}>
+                    <Link href="/settings">
+                        <Settings />
+                        <span>Settings</span>
+                    </Link>
                 </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
