@@ -4,9 +4,12 @@ import { Brain } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
 export function SplashScreen() {
+  const [isMounted, setIsMounted] = useState(false);
   const [particles, setParticles] = useState<{ style: React.CSSProperties }[]>([]);
 
   useEffect(() => {
+    setIsMounted(true);
+    // This now only runs on the client
     const newParticles = [...Array(8)].map((_, i) => ({
       style: {
         width: `${Math.random() * 3 + 2}px`,
@@ -17,7 +20,7 @@ export function SplashScreen() {
       },
     }));
     setParticles(newParticles);
-  }, []); // Empty dependency array ensures this runs only once on the client
+  }, []); // Empty dependency array ensures this runs once on mount
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black text-white overflow-hidden">
@@ -26,7 +29,7 @@ export function SplashScreen() {
 
       <div className="relative flex items-center justify-center w-64 h-64">
         {/* Orbiting particles */}
-        {particles.map((particle, i) => (
+        {isMounted && particles.map((particle, i) => (
           <div
             key={i}
             className="absolute rounded-full bg-primary/50 animate-orbit"

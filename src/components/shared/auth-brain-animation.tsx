@@ -5,9 +5,12 @@ import { Brain } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
 
 export function AuthBrainAnimation() {
+  const [isMounted, setIsMounted] = useState(false);
   const [particles, setParticles] = useState<{ style: React.CSSProperties }[]>([]);
 
   useEffect(() => {
+    setIsMounted(true);
+    // These will only run on the client, after initial hydration
     const newParticles = [...Array(12)].map((_, i) => ({
       style: {
         width: `${Math.random() * 4 + 2}px`,
@@ -19,13 +22,13 @@ export function AuthBrainAnimation() {
       }
     }));
     setParticles(newParticles);
-  }, []); // Empty dependency array ensures this runs only once on the client
+  }, []); // Empty dependency array ensures this runs only once on mount
 
 
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
       {/* Orbiting particles */}
-      {particles.map((particle, i) => (
+      {isMounted && particles.map((particle, i) => (
         <div
           key={i}
           className="absolute rounded-full bg-primary/50 animate-orbit"
