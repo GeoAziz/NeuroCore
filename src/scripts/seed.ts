@@ -1,7 +1,8 @@
 
+
 import 'dotenv/config';
 import { auth, firestore } from '../src/lib/firebase/admin';
-import type { UserProfile, PatientProfile, DoctorProfile, AdminProfile, PatientData, PrivacySettings, NeuralScan, CognitiveTestResult, TherapyModule, Appointment, Alert } from '@/lib/types';
+import type { UserProfile, PatientProfile, DoctorProfile, AdminProfile, PatientData, PrivacySettings, NeuralScan, CognitiveTestResult, TherapyModule, Appointment, Alert, AccessLog } from '@/lib/types';
 import { Timestamp } from 'firebase-admin/firestore';
 
 // --- Data Definitions ---
@@ -55,14 +56,23 @@ const alerts = (doctorId: string, patientId: string, patientName: string): Omit<
     { doctorId, patientId, patientName, type: 'Info', message: "Patient completed the 'Dream Weaving' therapy module.", timestamp: createTimestamp(3), status: 'Viewed' },
 ];
 
+const accessLogs = (doctorName: string): Omit<AccessLog, 'id'>[] => [
+    { viewer: doctorName, date: new Date(Date.now() - 1 * 60 * 60 * 1000).toLocaleString(), action: 'Viewed Mind Map', status: 'Authorized' },
+    { viewer: 'AI System', date: new Date(Date.now() - 3 * 60 * 60 * 1000).toLocaleString(), action: 'Generated AI Notes', status: 'Authorized' },
+    { viewer: doctorName, date: new Date(Date.now() - 24 * 60 * 60 * 1000).toLocaleString(), action: 'Accessed Session Logs', status: 'Authorized' },
+    { viewer: 'Unauthorized IP', date: new Date(Date.now() - 2 * 60 * 60 * 1000).toLocaleString(), action: 'Failed login attempt', status: 'Violation' },
+];
+
 async function seed() {
   console.log('Starting database seed...');
 
   const usersToSeed = [
-    { email: 'patient@neurocore.dev', password: 'password123', displayName: 'John Doe', role: 'patient' as const },
-    { email: 'patient2@neurocore.dev', password: 'password123', displayName: 'Jane Smith', role: 'patient' as const },
-    { email: 'doctor@neurocore.dev', password: 'password123', displayName: 'Dr. Anya Sharma', role: 'doctor' as const, specialty: "Neuropsychology" },
-    { email: 'admin@neurocore.dev', password: 'password123', displayName: 'Sys Admin', role: 'admin' as const },
+    { email: 'patient@neurocore.dev', password: 'password123', displayName: 'John Doe', role: 'patient' as const, status: 'Active' as const },
+    { email: 'patient2@neurocore.dev', password: 'password123', displayName: 'Jane Smith', role: 'patient' as const, status: 'Active' as const },
+    { email: 'patient3@neurocore.dev', password: 'password123', displayName: 'Sam Wilson', role: 'patient' as const, status: 'Suspended' as const },
+    { email: 'doctor@neurocore.dev', password: 'password123', displayName: 'Dr. Anya Sharma', role: 'doctor' as const, specialty: "Neuropsychology", status: 'Active' as const },
+    { email: 'doctor2@neurocore.dev', password: 'password123', displayName: 'Dr. Evelyn Reed', role: 'doctor' as const, specialty: "Cognitive Science", status: 'Active' as const },
+    { email: 'admin@neurocore.dev', password: 'password123', displayName: 'Sys Admin', role: 'admin' as const, status: 'Active' as const },
   ];
 
   const userRecords = await Promise.all(
@@ -84,9 +94,10 @@ async function seed() {
     })
   );
   
-  const doctorRecord = userRecords.find(u => u.role === 'doctor')!;
+  const doctorRecords = userRecords.filter(u => u.role === 'doctor');
   const adminRecord = userRecords.find(u => u.role === 'admin')!;
   const patientRecords = userRecords.filter(u => u.role === 'patient');
+  const mainDoctor = doctorRecords[0];
 
   const batch = firestore.batch();
   
@@ -101,18 +112,21 @@ async function seed() {
         email: patientRecord.email!,
         displayName: patientRecord.displayName,
         role: 'patient',
+        status: patientRecord.status,
+        registrationDate: createTimestamp(Math.floor(Math.random() * 365)),
+        lastLogin: createTimestamp(Math.floor(Math.random() * 7)),
         patientData: defaultPatientData(patientRecord.displayName),
         privacySettings: {
             liveTherapyMode: true,
             anonymizedResearch: false,
-            doctorAccess: { [doctorRecord.uid]: true },
+            doctorAccess: { [mainDoctor.uid]: true },
         }
     };
     batch.set(firestore.collection('users').doc(patientRecord.uid), patientProfile, { merge: true });
 
     // --- Seed Patient Subcollections (clear existing first) ---
-    const patientSubcollections = ['neural_scans', 'cognitive_tests', 'therapy_modules', 'appointments'];
-    for (const sub of patientSubcollections) {
+    const subcollections = ['neural_scans', 'cognitive_tests', 'therapy_modules', 'appointments', 'accessLogs'];
+    for (const sub of subcollections) {
         const snapshot = await firestore.collection('users').doc(patientRecord.uid).collection(sub).get();
         snapshot.docs.forEach(doc => batch.delete(doc.ref));
     }
@@ -130,32 +144,45 @@ async function seed() {
         const docRef = firestore.collection('users').doc(patientRecord.uid).collection('therapy_modules').doc();
         batch.set(docRef, item);
     });
-    appointments(doctorRecord.uid, patientRecord.uid).forEach(item => {
+    appointments(mainDoctor.uid, patientRecord.uid).forEach(item => {
         const docRef = firestore.collection('users').doc(patientRecord.uid).collection('appointments').doc();
         batch.set(docRef, item);
     });
-    alerts(doctorRecord.uid, patientRecord.uid, patientRecord.displayName).forEach(item => {
+    alerts(mainDoctor.uid, patientRecord.uid, patientRecord.displayName).forEach(item => {
         const docRef = firestore.collection('alerts').doc();
+        batch.set(docRef, item);
+    });
+    accessLogs(mainDoctor.displayName).forEach(item => {
+        const docRef = firestore.collection('users').doc(patientRecord.uid).collection('accessLogs').doc();
         batch.set(docRef, item);
     });
   }
 
   // --- Seed Doctor and Admin Profiles ---
-  const doctorProfile: DoctorProfile = {
-    uid: doctorRecord.uid,
-    email: doctorRecord.email!,
-    displayName: 'Dr. Anya Sharma',
-    role: 'doctor',
-    specialty: 'Neuropsychology',
-    patients: patientRecords.map(p => p.uid),
-  };
-  batch.set(firestore.collection('users').doc(doctorRecord.uid), doctorProfile, { merge: true });
+  for (const doctorRecord of doctorRecords) {
+    const doctorProfile: DoctorProfile = {
+      uid: doctorRecord.uid,
+      email: doctorRecord.email!,
+      displayName: doctorRecord.displayName,
+      role: 'doctor',
+      status: doctorRecord.status,
+      specialty: doctorRecord.specialty,
+      registrationDate: createTimestamp(Math.floor(Math.random() * 365) + 365),
+      lastLogin: createTimestamp(Math.floor(Math.random() * 3)),
+      patients: patientRecords.map(p => p.uid),
+    };
+    batch.set(firestore.collection('users').doc(doctorRecord.uid), doctorProfile, { merge: true });
+  }
+
 
   const adminProfile: AdminProfile = {
     uid: adminRecord.uid,
     email: adminRecord.email!,
-    displayName: 'Sys Admin',
+    displayName: adminRecord.displayName,
     role: 'admin',
+    status: adminRecord.status,
+    registrationDate: createTimestamp(1000),
+    lastLogin: createTimestamp(0),
   };
   batch.set(firestore.collection('users').doc(adminRecord.uid), adminProfile, { merge: true });
   

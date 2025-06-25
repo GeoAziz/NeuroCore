@@ -3,59 +3,54 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper functions
-    function isAuthenticated() {
-      return request.auth != null;
-    }
     
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-    
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    
-    function isDoctor() {
-      return isAuthenticated() && getRole() == 'doctor';
+    // Helper function to get the user's role from their profile
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
 
-    function isDoctorAssignedToPatient(patientId) {
-      // A doctor can access a patient's data if the patient's UID is in the doctor's 'patients' array.
-      let doctorData = get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
-      return isDoctor() && patientId in doctorData.patients;
+    // Helper function to check if a doctor is assigned to a patient
+    function isDoctorForPatient(doctorId, patientId) {
+      return get(/databases/$(database)/documents/users/$(doctorId)).data.patients[patientId] == true;
+    }
+    
+    // --- Admin Rules ---
+    // Admins have broad read access to the entire database for oversight.
+    // Write access is more restricted in a real app, but enabled here for the prototype.
+    match /{path=**}/users/{userId} {
+       allow read, write: if getUserRole(request.auth.uid) == 'admin';
     }
 
-    // Rules for the 'users' collection
+    match /users/{userId}/{subcollection}/{docId} {
+      allow read, write: if getUserRole(request.auth.uid) == 'admin';
+    }
+     match /alerts/{alertId} {
+      allow read, write: if getUserRole(request.auth.uid) == 'admin';
+    }
+
+    // --- User Profile Rules ---
+    // Users can read and update their own profile.
     match /users/{userId} {
-      // Authenticated users can read profiles (for names, avatars, etc.).
-      // Users can only create/update their own document.
-      allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow read, update: if request.auth.uid == userId;
+      // Allow doctors to read their assigned patients' profiles.
+      allow read: if getUserRole(request.auth.uid) == 'doctor' && isDoctorForPatient(request.auth.uid, userId);
+    }
+    
+    // --- Patient Subcollection Rules ---
+    // Patients can access their own subcollections.
+    match /users/{patientId}/{subcollection}/{docId} {
+        allow read, write, list: if request.auth.uid == patientId;
+    }
+    
+    // Doctors can read subcollections of their assigned patients.
+    match /users/{patientId}/{subcollection}/{docId} {
+        allow read, list: if getUserRole(request.auth.uid) == 'doctor' && isDoctorForPatient(request.auth.uid, patientId);
+    }
 
-      // Rules for patient subcollections
-      match /{subcollection}/{docId} {
-        // Patients can read/write their own data.
-        // Assigned doctors can read their patients' data.
-        allow read: if isOwner(userId) || isDoctorAssignedToPatient(userId);
-        allow write: if isOwner(userId);
-      }
-    }
-    
-    // Rules for the 'alerts' collection
+    // --- Alerts Collection Rules ---
+    // Doctors can read alerts that are assigned to them.
     match /alerts/{alertId} {
-      // Doctors can read alerts assigned to them.
-      allow read: if isDoctor() && resource.data.doctorId == request.auth.uid;
-      // No one can write/delete alerts for now (they are system-generated)
-      allow write: if false; 
-    }
-    
-    // Therapy content is public for any logged-in user
-    match /therapyContent/{contentId} {
-      allow read: if isAuthenticated();
-      // Only admins should write content (not implemented, so lock it down)
-      allow write: if false;
+      allow read: if request.auth.uid == resource.data.doctorId;
     }
   }
 }

@@ -20,7 +20,6 @@ import {
   LayoutDashboard,
   Stethoscope,
   BrainCircuit,
-  ShieldCheck,
   Brain,
   LogOut,
   Settings,
@@ -33,6 +32,10 @@ import {
   Video,
   Beaker,
   ShieldAlert,
+  Bot,
+  ListTree,
+  Server,
+  FileCog
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "../ui/button";
@@ -60,7 +63,12 @@ const doctorMenuItems = [
 ];
 
 const adminMenuItems = [
-    { href: "/admin", label: "Admin Console", icon: ShieldAlert },
+    { href: "/admin", label: "Dashboard", icon: ShieldAlert },
+    { href: "/admin/users", label: "User Management", icon: Users },
+    { href: "/admin/scan-center", label: "Scan Control", icon: Server },
+    { href: "/admin/ai-engine", label: "AI Engine", icon: Bot },
+    { href: "/admin/logs", label: "Logs & Analytics", icon: ListTree },
+    { href: "/admin/settings", label: "System Settings", icon: FileCog },
 ];
 
 
@@ -104,13 +112,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     }
     
     // Redirect to the correct dashboard after login.
-    if (userProfile && pathname === '/login') {
+    if (userProfile && (pathname === '/login' || pathname === '/')) {
         if (userProfile.role === 'doctor') router.push('/doctor');
         else if (userProfile.role === 'admin') router.push('/admin');
-        else router.push('/');
+        else if (pathname !== '/') router.push('/'); // patient
     }
 
   }, [isInitializing, user, userProfile, isAuthPage, pathname, router]);
+
 
   if (isInitializing) {
     return <SplashScreen />;
@@ -131,30 +140,41 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   
   let availableMenuItems = patientMenuItems; // Default
   let settingsUrl = '/settings';
+  let sidebarStyle = {};
   if (userProfile?.role === 'doctor') {
     availableMenuItems = doctorMenuItems;
     settingsUrl = '/doctor/settings';
   }
   if (userProfile?.role === 'admin') {
     availableMenuItems = adminMenuItems;
-    settingsUrl = '/settings'; // Admins can use the general settings page
+    settingsUrl = '/admin/settings';
+    sidebarStyle = {
+        '--sidebar-background': 'hsl(220 10% 10%)',
+        '--sidebar-foreground': 'hsl(210 10% 75%)',
+        '--sidebar-border': 'hsl(220 10% 20%)',
+        '--sidebar-accent': 'hsl(38 92% 50% / 0.1)',
+        '--sidebar-accent-foreground': 'hsl(38 92% 50%)',
+        '--sidebar-ring': 'hsl(38 92% 50%)'
+    } as React.CSSProperties;
   }
+
+  const isAdmin = userProfile?.role === 'admin';
 
 
   return (
     <SidebarProvider>
-      <Sidebar>
+      <Sidebar style={sidebarStyle}>
         <SidebarHeader className="p-4">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" className="shrink-0 text-primary">
+            <Button variant="ghost" size="icon" className={`shrink-0 ${isAdmin ? 'text-amber-400' : 'text-primary'}`}>
                 <BrainCircuit className="w-7 h-7" />
             </Button>
-            <h1 className="text-2xl font-bold font-headline text-foreground">NeuroCore</h1>
+            <h1 className={`text-2xl font-bold font-headline ${isAdmin ? 'text-gray-100' : 'text-foreground'}`}>NeuroCore</h1>
           </div>
         </SidebarHeader>
         <SidebarContent>
           <SidebarMenu>
-            {userProfile ? availableMenuItems.map((item) => (
+            {availableMenuItems.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton
                   asChild
@@ -167,19 +187,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-            )) : (
-                <>
-                    <SidebarMenuSkeleton showIcon />
-                    <SidebarMenuSkeleton showIcon />
-                    <SidebarMenuSkeleton showIcon />
-                </>
-            )}
+            ))}
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter className="p-4 flex flex-col gap-2">
           <SidebarMenu>
              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === settingsUrl}>
+                <SidebarMenuButton asChild isActive={pathname.endsWith('/settings')}>
                     <Link href={settingsUrl}>
                         <Settings />
                         <span>Settings</span>
@@ -197,7 +211,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       </Sidebar>
       <SidebarInset>
         <div className="flex-1 flex flex-col min-h-screen">
-          <header className="flex h-14 lg:h-[60px] items-center gap-4 border-b bg-background/80 backdrop-blur-sm px-6 sticky top-0 z-30">
+          <header className={`flex h-14 lg:h-[60px] items-center gap-4 border-b px-6 sticky top-0 z-30 ${isAdmin ? 'bg-gray-950/80 border-gray-800' : 'bg-background/80'} backdrop-blur-sm`}>
             <div className="lg:hidden">
                 <SidebarTrigger />
             </div>
@@ -206,7 +220,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </div>
              <div className="flex items-center gap-2">
                 <Avatar>
-                    <AvatarImage src="https://placehold.co/40x40" />
+                    <AvatarImage src={`https://placehold.co/40x40/${isAdmin ? 'f97316' : '9467d4'}/1e1b2e?text=${userProfile?.displayName?.charAt(0)?.toUpperCase()}`} />
                     <AvatarFallback>{userProfile?.displayName?.charAt(0)?.toUpperCase() ?? 'U'}</AvatarFallback>
                 </Avatar>
                 <div>
@@ -215,7 +229,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
                 </div>
             </div>
           </header>
-          <main className="flex-1 flex flex-col bg-muted/40">
+          <main className={`flex-1 flex flex-col ${isAdmin ? 'bg-gray-950' : 'bg-muted/40'}`}>
             {children}
           </main>
         </div>

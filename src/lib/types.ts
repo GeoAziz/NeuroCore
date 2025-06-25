@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 // --- Base and Role-Specific User Profiles ---
@@ -6,6 +7,9 @@ type BaseProfile = {
   uid: string;
   email: string | null;
   displayName: string | null;
+  status: 'Active' | 'Suspended';
+  registrationDate: Timestamp;
+  lastLogin: Timestamp;
 }
 
 export type PatientProfile = BaseProfile & {
@@ -53,6 +57,14 @@ export interface Alert {
     status: 'New' | 'Viewed';
 }
 
+export interface AccessLog {
+    id: string;
+    viewer: string;
+    date: string;
+    action: string;
+    status: 'Authorized' | 'Violation';
+    patientName?: string; // Denormalized for admin view
+}
 
 // --- Subcollection Interfaces ---
 
@@ -92,7 +104,7 @@ export interface Appointment {
     patientId: string;
     patientName?: string; // Denormalized for easy display
     doctorId: string;
-    doctorName?: string; // Denormalized for easy display
+    doctorName?: string; // Denormalized
     doctorAvatar?: string; // Denormalized
     date: Timestamp;
     purpose: string;
