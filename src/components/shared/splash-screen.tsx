@@ -1,9 +1,24 @@
 
 'use client';
 import { Brain } from 'lucide-react';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export function SplashScreen() {
+  const [particles, setParticles] = useState<{ style: React.CSSProperties }[]>([]);
+
+  useEffect(() => {
+    const newParticles = [...Array(8)].map((_, i) => ({
+      style: {
+        width: `${Math.random() * 3 + 2}px`,
+        height: `${Math.random() * 3 + 2}px`,
+        animationDelay: `${i * -0.5}s`,
+        '--orbit-radius': `${Math.floor(Math.random() * 50 + 80)}px`,
+        '--orbit-duration': `${Math.floor(Math.random() * 10 + 15)}s`,
+      },
+    }));
+    setParticles(newParticles);
+  }, []); // Empty dependency array ensures this runs only once on the client
+
   return (
     <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-black text-white overflow-hidden">
       <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
@@ -11,17 +26,11 @@ export function SplashScreen() {
 
       <div className="relative flex items-center justify-center w-64 h-64">
         {/* Orbiting particles */}
-        {[...Array(8)].map((_, i) => (
+        {particles.map((particle, i) => (
           <div
             key={i}
             className="absolute rounded-full bg-primary/50 animate-orbit"
-            style={{
-              width: `${Math.random() * 3 + 2}px`,
-              height: `${Math.random() * 3 + 2}px`,
-              animationDelay: `${i * -0.5}s`,
-              '--orbit-radius': `${Math.floor(Math.random() * 50 + 80)}px`,
-              '--orbit-duration': `${Math.floor(Math.random() * 10 + 15)}s`,
-            }}
+            style={particle.style as React.CSSProperties}
           />
         ))}
 

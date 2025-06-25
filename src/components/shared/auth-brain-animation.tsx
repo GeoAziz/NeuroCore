@@ -2,24 +2,34 @@
 'use client';
 
 import { Brain } from 'lucide-react';
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 export function AuthBrainAnimation() {
+  const [particles, setParticles] = useState<{ style: React.CSSProperties }[]>([]);
+
+  useEffect(() => {
+    const newParticles = [...Array(12)].map((_, i) => ({
+      style: {
+        width: `${Math.random() * 4 + 2}px`,
+        height: `${Math.random() * 4 + 2}px`,
+        animationDelay: `${i * -0.4}s`,
+        '--orbit-radius': `${Math.floor(Math.random() * 40 + 70)}px`,
+        '--orbit-duration': `${Math.floor(Math.random() * 8 + 12)}s`,
+        filter: `blur(${Math.random() * 1.5}px)`
+      }
+    }));
+    setParticles(newParticles);
+  }, []); // Empty dependency array ensures this runs only once on the client
+
+
   return (
     <div className="relative w-64 h-64 flex items-center justify-center">
       {/* Orbiting particles */}
-      {[...Array(12)].map((_, i) => (
+      {particles.map((particle, i) => (
         <div
           key={i}
           className="absolute rounded-full bg-primary/50 animate-orbit"
-          style={{
-            width: `${Math.random() * 4 + 2}px`,
-            height: `${Math.random() * 4 + 2}px`,
-            animationDelay: `${i * -0.4}s`,
-            '--orbit-radius': `${Math.floor(Math.random() * 40 + 70)}px`,
-            '--orbit-duration': `${Math.floor(Math.random() * 8 + 12)}s`,
-            filter: `blur(${Math.random() * 1.5}px)`
-          }}
+          style={particle.style as React.CSSProperties}
         />
       ))}
 
