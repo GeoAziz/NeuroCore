@@ -9,12 +9,21 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { eegSignalData } from "@/lib/data";
 import {
   ChartTooltipContent,
   ChartTooltip,
   ChartContainer,
 } from "@/components/ui/chart";
+
+const eegSignalData = [
+  { time: "0s", alpha: 40, beta: 60, gamma: 20 },
+  { time: "1s", alpha: 30, beta: 50, gamma: 25 },
+  { time: "2s", alpha: 50, beta: 70, gamma: 30 },
+  { time: "3s", alpha: 45, beta: 65, gamma: 35 },
+  { time: "4s", alpha: 60, beta: 80, gamma: 40 },
+  { time: "5s", alpha: 55, beta: 75, gamma: 45 },
+  { time: "6s", alpha: 70, beta: 90, gamma: 50 },
+];
 
 export function EegChart() {
   return (
