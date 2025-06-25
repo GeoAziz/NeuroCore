@@ -126,10 +126,9 @@ export default function AuthPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-black p-4 from-background to-black bg-gradient-to-br">
-       <div className="relative w-full h-full">
-            <div className="absolute inset-0 bg-grid-pattern opacity-10"></div>
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10"></div>
-        </div>
+       <div className="absolute inset-0 bg-grid-pattern opacity-10 -z-10"></div>
+       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-accent/10 -z-10"></div>
+
       <div className="relative grid md:grid-cols-2 max-w-5xl w-full bg-card rounded-lg shadow-2xl shadow-primary/10 overflow-hidden border border-border">
         <div className="hidden md:flex flex-col items-center justify-center p-8 bg-muted/30 border-r border-border">
           <AuthBrainAnimation />
@@ -138,6 +137,11 @@ export default function AuthPage() {
         </div>
 
         <div className="flex flex-col justify-center p-6 sm:p-8">
+            <div className="md:hidden flex flex-col items-center text-center mb-8">
+                 <Brain className="w-16 h-16 text-primary mb-3" />
+                 <h2 className="text-2xl font-bold font-headline text-foreground">Zizo_NeuroCore</h2>
+            </div>
+            
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
@@ -146,7 +150,7 @@ export default function AuthPage() {
             
             <TabsContent value="signin" className="mt-6">
               <Card className="border-none shadow-none bg-transparent">
-                <CardHeader className="px-1">
+                <CardHeader className="p-1 text-center md:text-left">
                     <CardTitle>Welcome Back</CardTitle>
                     <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
                 </CardHeader>
@@ -170,7 +174,7 @@ export default function AuthPage() {
 
             <TabsContent value="signup" className="mt-6">
                  <Card className="border-none shadow-none bg-transparent">
-                    <CardHeader className="px-1">
+                    <CardHeader className="p-1 text-center md:text-left">
                         <CardTitle>Join NeuroCore</CardTitle>
                         <CardDescription>Create your account to begin your journey.</CardDescription>
                     </CardHeader>
@@ -195,7 +199,7 @@ export default function AuthPage() {
                 </Card>
             </TabsContent>
           </Tabs>
-            <div className="relative my-4">
+            <div className="relative my-6">
                 <div className="absolute inset-0 flex items-center">
                     <span className="w-full border-t border-border"></span>
                 </div>
@@ -203,7 +207,7 @@ export default function AuthPage() {
                     <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Button variant="outline" onClick={handleEnterAsPatient} disabled={isLoginLoading}>
                     <Brain className="mr-2 h-4 w-4" />
                     Guest Patient
