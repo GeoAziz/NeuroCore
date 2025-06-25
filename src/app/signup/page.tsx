@@ -14,7 +14,7 @@ import { doc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Brain } from 'lucide-react';
-import type { UserProfile } from '@/lib/types';
+import type { UserProfile, PatientData, PrivacySettings } from '@/lib/types';
 
 const signupSchema = z.object({
   displayName: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
@@ -48,16 +48,33 @@ export default function SignupPage() {
         displayName: data.displayName,
       });
 
+      const defaultPatientData: PatientData = {
+        cognitionScore: { value: 0, change: 0 },
+        mentalHealthGrade: 'N/A',
+        sleepQuality: 0,
+        mood: 'Neutral',
+        moodPrediction: 'Stable',
+        moodTrackerData: [],
+      };
+
+      const defaultPrivacySettings: PrivacySettings = {
+        liveTherapyMode: true,
+        anonymizedResearch: false,
+        doctorAccess: {},
+      };
+
       const userProfile: UserProfile = {
         uid: user.uid,
         email: user.email,
         displayName: data.displayName,
-        role: 'patient', // Default role
+        role: 'patient', // Default role for new signups
+        patientData: defaultPatientData,
+        privacySettings: defaultPrivacySettings,
       };
 
       await setDoc(doc(db, 'users', user.uid), userProfile);
 
-      toast({ title: 'Success', description: 'Account created successfully.' });
+      toast({ title: 'Success', description: 'Account created successfully. Logging in...' });
       router.push('/');
     } catch (error: any) {
       console.error(error);

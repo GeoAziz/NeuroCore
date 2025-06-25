@@ -11,7 +11,7 @@ export interface UserProfile {
   privacySettings?: PrivacySettings;
 }
 
-// Data specific to a patient
+// Data specific to a patient, stored in their user document
 export interface PatientData {
   cognitionScore: {
     value: number;
@@ -22,8 +22,6 @@ export interface PatientData {
   mood: string;
   moodPrediction: string;
   moodTrackerData: MoodTrackerDataPoint[];
-  sessionLogs: SessionLog[];
-  accessLogs: AccessLog[];
 }
 
 export interface MoodTrackerDataPoint {
@@ -33,7 +31,7 @@ export interface MoodTrackerDataPoint {
 }
 
 
-// Log entries
+// Log entries, stored in subcollections of a user document
 export interface SessionLog {
   id: string;
   type: string;
@@ -48,10 +46,10 @@ export interface AccessLog {
   date: string; // Consider using Timestamp
   action: string;
   status: 'Authorized' | 'Violation';
+  patientName?: string; // Used for aggregated views in Admin console
 }
 
 // Admin data - This is now represented by fetching from user subcollections or global collections
-
 export interface TherapyContent {
   id: string;
   name: string;
@@ -63,7 +61,7 @@ export interface TherapyContent {
   data_ai_hint: string;
 }
 
-// Privacy settings
+// Privacy settings, stored in the user document
 export interface PrivacySettings {
     liveTherapyMode: boolean;
     anonymizedResearch: boolean;

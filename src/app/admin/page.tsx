@@ -40,9 +40,6 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 
-interface AggregatedAccessLog extends AccessLog {
-    patientName: string;
-}
 
 const addDoctorSchema = z.object({
     displayName: z.string().min(2, 'Name is required'),
@@ -54,7 +51,7 @@ type AddDoctorFormValues = z.infer<typeof addDoctorSchema>;
 
 export default function AdminConsole() {
     const { toast } = useToast();
-    const [accessLogs, setAccessLogs] = useState<AggregatedAccessLog[]>([]);
+    const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
     const [therapyContent, setTherapyContent] = useState<TherapyContent[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(true);
     const [loadingContent, setLoadingContent] = useState(true);
@@ -88,12 +85,16 @@ export default function AdminConsole() {
             setLoadingLogs(true);
             try {
                 const usersSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'patient')));
-                const allLogs: AggregatedAccessLog[] = [];
+                const allLogs: AccessLog[] = [];
                 for (const userDoc of usersSnapshot.docs) {
                     const patient = userDoc.data() as UserProfile;
                     const logsSnapshot = await getDocs(collection(db, `users/${patient.uid}/accessLogs`));
                     logsSnapshot.forEach(logDoc => {
-                        allLogs.push({ ...logDoc.data() as AccessLog, id: logDoc.id, patientName: patient.displayName || 'Unknown Patient' });
+                        allLogs.push({ 
+                            ...(logDoc.data() as Omit<AccessLog, 'id'>), 
+                            id: logDoc.id, 
+                            patientName: patient.displayName || 'Unknown Patient' 
+                        });
                     });
                 }
                 setAccessLogs(allLogs);
