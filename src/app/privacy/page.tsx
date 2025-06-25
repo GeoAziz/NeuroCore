@@ -1,3 +1,5 @@
+'use client';
+import { useEffect, useState } from 'react';
 import {
   Card,
   CardContent,
@@ -10,8 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Lock, Unlock, Eye, ListCollapse, UserX } from 'lucide-react';
-import { accessLogs } from '@/lib/data';
+import { Shield, Lock, Unlock, Eye, ListCollapse, UserX, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -20,8 +21,88 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { useAuth } from '@/context/auth-context';
+import { db } from '@/lib/firebase/client';
+import { doc, onSnapshot, updateDoc, collection, getDocs, query } from 'firebase/firestore';
+import type { PrivacySettings, AccessLog } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 export default function PrivacyConsole() {
+    const { user } = useAuth();
+    const { toast } = useToast();
+    const [settings, setSettings] = useState<PrivacySettings | null>(null);
+    const [accessLogs, setAccessLogs] = useState<AccessLog[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        if (!user) return;
+
+        setLoading(true);
+        // Listener for privacy settings
+        const userDocRef = doc(db, 'users', user.uid);
+        const unsubscribeSettings = onSnapshot(userDocRef, (docSnap) => {
+            if (docSnap.exists()) {
+                setSettings(docSnap.data().privacySettings as PrivacySettings);
+            } else {
+                setSettings(null);
+            }
+            setLoading(false);
+        });
+
+        // Fetch access logs once
+        const fetchLogs = async () => {
+            const logsQuery = query(collection(db, `users/${user.uid}/accessLogs`));
+            const logsSnapshot = await getDocs(logsQuery);
+            const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccessLog));
+            setAccessLogs(logsData);
+        };
+        
+        fetchLogs();
+
+        return () => {
+            unsubscribeSettings();
+        };
+    }, [user]);
+
+    const handleSettingChange = async (key: keyof PrivacySettings, value: boolean) => {
+        if (!user || !settings) return;
+
+        const newSettings = { ...settings, [key]: value };
+        setSettings(newSettings); // Optimistic update
+
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            await updateDoc(userDocRef, {
+                [`privacySettings.${key}`]: value
+            });
+            toast({ title: 'Success', description: 'Privacy setting updated.' });
+        } catch (error) {
+            console.error("Error updating setting:", error);
+            setSettings(settings); // Revert on error
+            toast({ title: 'Error', description: 'Failed to update setting.', variant: 'destructive' });
+        }
+    };
+    
+    if (loading) {
+        return (
+             <div className="flex-1 space-y-6 p-4 md:p-6">
+                <div className="flex items-center justify-between">
+                    <Skeleton className="h-9 w-96" />
+                    <Skeleton className="h-9 w-40" />
+                </div>
+                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <div className="lg:col-span-2 space-y-6">
+                        <Skeleton className="h-80 w-full" />
+                        <Skeleton className="h-96 w-full" />
+                    </div>
+                     <Skeleton className="h-96 w-full" />
+                </div>
+            </div>
+        )
+    }
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
        <div className="flex items-center justify-between">
@@ -45,25 +126,27 @@ export default function PrivacyConsole() {
                             <Label htmlFor="therapymode" className="font-semibold">Live Therapy Mode</Label>
                             <p className="text-xs text-muted-foreground">Allow live mental data streaming during sessions.</p>
                         </div>
-                        <Switch id="therapymode" defaultChecked />
+                        <Switch id="therapymode" checked={settings?.liveTherapyMode} onCheckedChange={(checked) => handleSettingChange('liveTherapyMode', checked)} />
                     </div>
                      <div className="flex items-center justify-between rounded-lg border p-4">
                         <div>
                             <Label htmlFor="research" className="font-semibold">Anonymized Research</Label>
                             <p className="text-xs text-muted-foreground">Contribute anonymized data to neuroscience research.</p>
                         </div>
-                        <Switch id="research" />
+                        <Switch id="research" checked={settings?.anonymizedResearch} onCheckedChange={(checked) => handleSettingChange('anonymizedResearch', checked)} />
                     </div>
-                     <div className="flex items-center justify-between rounded-lg border p-4">
-                        <div>
-                            <Label htmlFor="doctor-access" className="font-semibold">Dr. Anya Sharma Access</Label>
-                            <p className="text-xs text-muted-foreground">Primary neurospecialist.</p>
+                     {settings?.doctorAccess && Object.keys(settings.doctorAccess).map(doctorId => (
+                         <div key={doctorId} className="flex items-center justify-between rounded-lg border p-4">
+                            <div>
+                                <Label htmlFor={`doctor-access-${doctorId}`} className="font-semibold">Doctor Access</Label>
+                                <p className="text-xs text-muted-foreground">Allow access for primary neurospecialist.</p>
+                            </div>
+                            <Switch id={`doctor-access-${doctorId}`} checked={settings.doctorAccess[doctorId]} disabled />
                         </div>
-                        <Switch id="doctor-access" defaultChecked />
-                    </div>
+                     ))}
                 </CardContent>
                 <CardFooter>
-                    <Button variant="outline">
+                    <Button variant="outline" disabled>
                         <ListCollapse className="w-4 h-4 mr-2" />
                         Manage All Permissions
                     </Button>
@@ -82,6 +165,7 @@ export default function PrivacyConsole() {
                                 <TableHead>Viewer</TableHead>
                                 <TableHead>Action</TableHead>
                                 <TableHead>Date</TableHead>
+                                <TableHead>Status</TableHead>
                                 <TableHead className="text-right">Action</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -91,8 +175,11 @@ export default function PrivacyConsole() {
                                     <TableCell className="font-medium">{log.viewer}</TableCell>
                                     <TableCell>{log.action}</TableCell>
                                     <TableCell>{log.date}</TableCell>
+                                    <TableCell>
+                                         <Badge variant={log.status === 'Violation' ? 'destructive' : 'secondary'}>{log.status}</Badge>
+                                    </TableCell>
                                     <TableCell className="text-right">
-                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive-foreground hover:bg-destructive">
+                                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive-foreground hover:bg-destructive" disabled>
                                         <UserX className="w-4 h-4 mr-2" />
                                         Revoke
                                     </Button>
@@ -136,7 +223,7 @@ export default function PrivacyConsole() {
                 </div>
             </CardContent>
             <CardFooter>
-                 <Button className="w-full">
+                 <Button className="w-full" disabled>
                     <Unlock className="w-4 h-4 mr-2" />
                     Configure New Lock
                 </Button>

@@ -43,16 +43,10 @@ export interface AccessLog {
   viewer: string;
   date: string; // Consider using Timestamp
   action: string;
-}
-
-// Admin data
-export interface AdminAccessLog {
-  id: string;
-  user: string;
-  timestamp: string; // Consider using Timestamp
-  action: string;
   status: 'Authorized' | 'Violation';
 }
+
+// Admin data - This is now represented by fetching from user subcollections or global collections
 
 export interface TherapyContent {
   id: string;
@@ -60,6 +54,9 @@ export interface TherapyContent {
   type: 'Audio' | 'Game' | 'VR Sim';
   category: string;
   added: string; // Consider using Timestamp
+  description: string;
+  image: string;
+  data_ai_hint: string;
 }
 
 // Privacy settings
@@ -70,7 +67,7 @@ export interface PrivacySettings {
 }
 
 export interface JournalEntry {
-    id: string;
+    id:string;
     text: string;
     timestamp: Timestamp;
 }

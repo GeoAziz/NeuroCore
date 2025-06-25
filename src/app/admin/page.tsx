@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Card,
   CardContent,
@@ -17,16 +19,74 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { adminAccessLogs, therapyContent } from '@/lib/data';
-import { Search, UserPlus, Upload, ShieldAlert, Link2 } from 'lucide-react';
+import { Search, UserPlus, Upload, ShieldAlert, Link2, Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { collection, getDocs, query, where, collectionGroup } from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
+import type { AccessLog, TherapyContent, UserProfile } from '@/lib/types';
+
+
+interface AggregatedAccessLog extends AccessLog {
+    patientName: string;
+}
 
 export default function AdminConsole() {
+    const [accessLogs, setAccessLogs] = useState<AggregatedAccessLog[]>([]);
+    const [therapyContent, setTherapyContent] = useState<TherapyContent[]>([]);
+    const [loadingLogs, setLoadingLogs] = useState(true);
+    const [loadingContent, setLoadingContent] = useState(true);
+
+    useEffect(() => {
+        const fetchAccessLogs = async () => {
+            setLoadingLogs(true);
+            try {
+                // This is an example of client-side aggregation.
+                // For production, this should be done with a backend/Cloud Function for efficiency and security.
+                const usersSnapshot = await getDocs(query(collection(db, 'users'), where('role', '==', 'patient')));
+                const patientIds = usersSnapshot.docs.map(doc => ({id: doc.id, name: doc.data().displayName || 'Unknown Patient'}));
+                
+                const allLogs: AggregatedAccessLog[] = [];
+                
+                const logPromises = patientIds.map(async (patient) => {
+                    const logsSnapshot = await getDocs(collection(db, `users/${patient.id}/accessLogs`));
+                    logsSnapshot.forEach(doc => {
+                        allLogs.push({ ...doc.data() as AccessLog, patientName: patient.name });
+                    });
+                });
+
+                await Promise.all(logPromises);
+                
+                setAccessLogs(allLogs);
+            } catch (error) {
+                console.error("Error fetching access logs:", error);
+            } finally {
+                setLoadingLogs(false);
+            }
+        };
+
+        const fetchTherapyContent = async () => {
+            setLoadingContent(true);
+            try {
+                const contentSnapshot = await getDocs(collection(db, 'therapyContent'));
+                const contentList = contentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TherapyContent));
+                setTherapyContent(contentList);
+            } catch (error) {
+                console.error("Error fetching therapy content:", error);
+            } finally {
+                setLoadingContent(false);
+            }
+        };
+
+        fetchAccessLogs();
+        fetchTherapyContent();
+    }, []);
+
   return (
     <div className="flex-1 space-y-6 p-4 md:p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold font-headline">Admin Console</h1>
         <div className="flex items-center gap-4">
-             <Button>
+             <Button disabled>
                 <UserPlus className="w-4 h-4 mr-2"/>
                 Add New Doctor
              </Button>
@@ -50,13 +110,19 @@ export default function AdminConsole() {
                     <div className="mb-4">
                          <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input placeholder="Search logs by user or action..." className="pl-9" />
+                            <Input placeholder="Search logs by user or action..." className="pl-9" disabled />
                         </div>
                     </div>
+                    {loadingLogs ? (
+                        <div className="flex justify-center items-center h-40">
+                            <Loader2 className="w-8 h-8 animate-spin" />
+                        </div>
+                    ) : (
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>User</TableHead>
+                                <TableHead>Patient</TableHead>
                                 <TableHead>Timestamp</TableHead>
                                 <TableHead>Action</TableHead>
                                 <TableHead>Status</TableHead>
@@ -64,21 +130,23 @@ export default function AdminConsole() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {adminAccessLogs.map(log => (
+                            {accessLogs.map(log => (
                                 <TableRow key={log.id} className={log.status === 'Violation' ? 'bg-destructive/20' : ''}>
-                                    <TableCell className="font-medium">{log.user}</TableCell>
-                                    <TableCell>{log.timestamp}</TableCell>
+                                    <TableCell className="font-medium">{log.viewer}</TableCell>
+                                    <TableCell>{log.patientName}</TableCell>
+                                    <TableCell>{log.date}</TableCell>
                                     <TableCell>{log.action}</TableCell>
                                     <TableCell>
                                         <Badge variant={log.status === 'Violation' ? 'destructive' : 'secondary'}>{log.status}</Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        {log.status === 'Violation' && <Button variant="destructive" size="sm">Suspend Access</Button>}
+                                        {log.status === 'Violation' && <Button variant="destructive" size="sm" disabled>Suspend Access</Button>}
                                     </TableCell>
                                 </TableRow>
                             ))}
                         </TableBody>
                     </Table>
+                    )}
                 </CardContent>
             </Card>
         </TabsContent>
@@ -90,12 +158,17 @@ export default function AdminConsole() {
                         <CardTitle>Therapy Content Manager</CardTitle>
                         <CardDescription>Upload new soundtracks, games, or VR sims.</CardDescription>
                     </div>
-                    <Button>
+                    <Button disabled>
                         <Upload className="w-4 h-4 mr-2" />
                         Upload Content
                     </Button>
                 </CardHeader>
                 <CardContent>
+                    {loadingContent ? (
+                         <div className="flex justify-center items-center h-40">
+                            <Loader2 className="w-8 h-8 animate-spin" />
+                        </div>
+                    ) : (
                      <Table>
                         <TableHeader>
                             <TableRow>
@@ -116,6 +189,7 @@ export default function AdminConsole() {
                             ))}
                         </TableBody>
                     </Table>
+                    )}
                 </CardContent>
             </Card>
         </TabsContent>
@@ -135,7 +209,7 @@ export default function AdminConsole() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline"><Link2 /> MediChain Record Bridge</CardTitle>
                     <CardDescription>Shows what data is synced from/to Zizo_MediChain.</CardDescription>
-                </CardHeader>
+                </Header>
                 <CardContent className="text-center py-20">
                      <p className="text-muted-foreground">Bridge is active. 1,204 records synced today.</p>
                      <Button variant="outline" className="mt-4">View Sync Status</Button>

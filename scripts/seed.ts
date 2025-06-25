@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { auth, firestore } from '../src/lib/firebase/admin';
-import type { UserProfile } from '@/lib/types';
+import type { UserProfile, JournalEntry } from '@/lib/types';
+import { Timestamp } from 'firebase-admin/firestore';
 
 // --- Seed Data ---
 
@@ -55,16 +56,23 @@ const sessionLogs = [
 ];
 
 const accessLogs = [
-    { id: 'L001', viewer: 'Dr. Evelyn Reed', date: '2023-10-26 14:00', action: 'Viewed Mind Map' },
-    { id: 'L002', viewer: 'AI System', date: '2023-10-26 10:15', action: 'Generated AI Notes' },
-    { id: 'L003', viewer: 'Dr. Kenji Tanaka', date: '2023-10-25 11:30', action: 'Accessed Session Logs' },
+    { id: 'L001', viewer: 'Dr. Evelyn Reed', date: '2023-10-26 14:00', action: 'Viewed Mind Map', status: 'Authorized' as const },
+    { id: 'L002', viewer: 'AI System', date: '2023-10-26 10:15', action: 'Generated AI Notes', status: 'Authorized' as const },
+    { id: 'L003', viewer: 'Dr. Kenji Tanaka', date: '2023-10-25 11:30', action: 'Accessed Session Logs', status: 'Authorized' as const },
+    { id: 'L004', viewer: 'Unauthorized IP', date: '2023-10-27 01:00', action: 'Failed login attempt', status: 'Violation' as const },
+];
+
+const journalEntries: Omit<JournalEntry, 'id'>[] = [
+    { text: "Felt overwhelmed with work this morning. The focus gym session helped, but by evening, I was exhausted.", timestamp: Timestamp.fromDate(new Date('2023-10-26T19:00:00')) },
+    { text: "The dream simulation was strange, a bit unsettling. Woke up feeling more rested than usual though.", timestamp: Timestamp.fromDate(new Date('2023-10-25T08:00:00')) },
+    { text: "Feeling positive today. The calm room session yesterday must have helped.", timestamp: Timestamp.fromDate(new Date('2023-10-27T10:00:00')) },
 ];
 
 const therapyContent = [
-    { id: 'T01', name: 'Ocean Breath Soundscape', type: 'Audio', category: 'Calm Room', added: '2023-10-01' },
-    { id: 'T02', name: 'Neuro-Pathways', type: 'Game', category: 'Focus Gym', added: '2023-10-05' },
-    { id: 'T03', name: 'Starry Night Simulation', type: 'VR Sim', category: 'Dream States', added: '2023-10-12' },
-    { id: 'T04', name: 'Mnemonic Palace', type: 'Game', category: 'Memory Maze', added: '2023-10-18' },
+    { id: 'T01', name: 'Ocean Breath Soundscape', type: 'Audio' as const, category: 'Calm Room', added: '2023-10-01', description: 'Virtual relaxation spaces, soundscapes, and breathing exercises.', image: 'https://placehold.co/1200x800', data_ai_hint: 'calm beach' },
+    { id: 'T02', name: 'Neuro-Pathways', type: 'Game' as const, category: 'Focus Gym', added: '2023-10-05', description: 'Puzzle games designed to enhance focus and mental acuity.', image: 'https://placehold.co/1200x800', data_ai_hint: 'abstract puzzle' },
+    { id: 'T03', name: 'Starry Night Simulation', type: 'VR Sim' as const, category: 'Dream States', added: '2023-10-12', description: 'AI-simulated environments based on your current emotions.', image: 'https://placehold.co/1200x800', data_ai_hint: 'surreal dreamscape' },
+    { id: 'T04', name: 'Mnemonic Palace', type: 'Game' as const, category: 'Memory Maze', added: '2023-10-18', description: 'Strengthen memory recall through interactive challenges.', image: 'https://placehold.co/1200x800', data_ai_hint: 'glowing maze' },
 ];
 
 async function seed() {
@@ -108,7 +116,7 @@ async function seed() {
     }
   });
 
-  const createdUsers = (await Promise.all(userPromises)).filter(Boolean);
+  const createdUsers = (await Promise.all(userPromises)).filter((u): u is NonNullable<typeof u> => u !== undefined);
   const patientUser = createdUsers.find(u => u?.role === 'patient');
 
   if (!patientUser) {
@@ -145,6 +153,12 @@ async function seed() {
       batch.set(accessLogsCol.doc(log.id), logWithDoctor);
   });
   
+  const journalEntriesCol = firestore.collection('users').doc(patientUser.uid).collection('journalEntries');
+  journalEntries.forEach(entry => {
+    const docRef = journalEntriesCol.doc();
+    batch.set(docRef, entry);
+  });
+
   // --- Seed Global Collections ---
   const therapyContentCol = firestore.collection('therapyContent');
   therapyContent.forEach(item => {
