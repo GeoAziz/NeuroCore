@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import {
   SidebarProvider,
@@ -32,6 +32,7 @@ import { Button } from "../ui/button";
 import { useAuth } from "@/context/auth-context";
 import { auth } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
+import React, { useEffect } from 'react';
 
 const menuItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ['patient'] },
@@ -54,6 +55,14 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
+  useEffect(() => {
+    if (loading) return; // Don't do anything while loading
+    if (!user && !isAuthPage) {
+      router.push('/login');
+    }
+  }, [loading, user, isAuthPage, router]);
+
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
@@ -62,23 +71,18 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && !isAuthPage) {
-    // router.push('/login') will cause a render loop issue with Next.js App Router
-    // We handle redirection in a useEffect within a page or a dedicated component
-    // For now, we return null to prevent rendering protected content
-    if (typeof window !== "undefined") {
-        router.push('/login');
-    }
+  if (isAuthPage) {
+    return <>{children}</>;
+  }
+  
+  if (!user) {
+    // The useEffect above will redirect. In the meantime, show a loader.
     return (
          <div className="flex items-center justify-center min-h-screen bg-background">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <p className="ml-2">Redirecting to login...</p>
         </div>
     );
-  }
-  
-  if (isAuthPage) {
-    return <>{children}</>;
   }
   
   const availableMenuItems = menuItems.filter(item => userProfile?.role && item.roles.includes(userProfile.role));
