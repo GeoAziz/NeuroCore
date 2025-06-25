@@ -3,54 +3,57 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to get the user's role from their profile
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
-    }
 
-    // Helper function to check if a doctor is assigned to a patient
-    function isDoctorForPatient(doctorId, patientId) {
-      return get(/databases/$(database)/documents/users/$(doctorId)).data.patients[patientId] == true;
+    // --- Collection Group Rules for Admin ---
+    // These are required for the Admin Panel's "Scan Control Center" and "Logs & Analytics" pages
+    // which perform queries across all users' subcollections.
+    
+    // Allow admins to read any document in the 'neural_scans' collection group.
+    match /{path=**}/neural_scans/{scanId} {
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // --- Admin Rules ---
-    // Admins have broad read access to the entire database for oversight.
-    // Write access is more restricted in a real app, but enabled here for the prototype.
-    match /{path=**}/users/{userId} {
-       allow read, write: if getUserRole(request.auth.uid) == 'admin';
-    }
-
-    match /users/{userId}/{subcollection}/{docId} {
-      allow read, write: if getUserRole(request.auth.uid) == 'admin';
-    }
-     match /alerts/{alertId} {
-      allow read, write: if getUserRole(request.auth.uid) == 'admin';
+    // Allow admins to read any document in the 'accessLogs' collection group.
+    match /{path=**}/accessLogs/{logId} {
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
     // --- User Profile Rules ---
-    // Users can read and update their own profile.
     match /users/{userId} {
-      allow read, update: if request.auth.uid == userId;
-      // Allow doctors to read their assigned patients' profiles.
-      allow read: if getUserRole(request.auth.uid) == 'doctor' && isDoctorForPatient(request.auth.uid, userId);
-    }
-    
-    // --- Patient Subcollection Rules ---
-    // Patients can access their own subcollections.
-    match /users/{patientId}/{subcollection}/{docId} {
-        allow read, write, list: if request.auth.uid == patientId;
-    }
-    
-    // Doctors can read subcollections of their assigned patients.
-    match /users/{patientId}/{subcollection}/{docId} {
-        allow read, list: if getUserRole(request.auth.uid) == 'doctor' && isDoctorForPatient(request.auth.uid, patientId);
+      // Any authenticated user can read any other user's profile for basic info (e.g., display name for logs).
+      // This is a 'get' rule, so it only applies to direct document reads, not queries on the collection.
+      allow get: if request.auth != null;
+      
+      // Users can only update their own profile.
+      allow update: if request.auth.uid == userId;
+      
+      // Admins can read/write any user profile.
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // --- Alerts Collection Rules ---
-    // Doctors can read alerts that are assigned to them.
+    // --- Patient-Specific Subcollection Rules ---
+    match /users/{patientId}/{subcollection}/{docId} {
+       // Patients can read and write to their own subcollections.
+       allow read, write: if request.auth.uid == patientId;
+       
+       // Doctors can read their assigned patients' subcollections.
+       allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor'
+                   && patientId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.patients;
+    }
+    
+    // --- Global Collection Rules ---
     match /alerts/{alertId} {
-      allow read: if request.auth.uid == resource.data.doctorId;
+      // Doctors can read alerts assigned to them.
+      allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor'
+                  && resource.data.doctorId == request.auth.uid;
+                  
+      // Admins can read and write all alerts.
+      allow read, write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Allow admins to read from any other top-level collection needed for the admin panel.
+    match /therapyContent/{contentId} {
+        allow read: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
   }
 }
