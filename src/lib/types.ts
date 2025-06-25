@@ -1,3 +1,4 @@
+
 import type { Timestamp } from 'firebase/firestore';
 
 // Base user data
@@ -20,6 +21,9 @@ export interface PatientData {
   sleepQuality: number;
   mood: string;
   moodPrediction: string;
+  moodTrackerData: MoodTrackerDataPoint[];
+  sessionLogs: SessionLog[];
+  accessLogs: AccessLog[];
 }
 
 export interface MoodTrackerDataPoint {

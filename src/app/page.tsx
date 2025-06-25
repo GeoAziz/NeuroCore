@@ -1,3 +1,4 @@
+
 'use client';
 import {
   Card,
@@ -19,7 +20,7 @@ export default function PatientDashboard() {
   const { userProfile, loading } = useAuth();
   const patientData = userProfile?.patientData;
 
-  if (loading || !patientData) {
+  if (loading) {
     return (
         <div className="flex-1 space-y-6 p-4 md:p-6">
             <div className="flex items-center justify-between">
@@ -43,6 +44,16 @@ export default function PatientDashboard() {
                 </div>
             </div>
         </div>
+    );
+  }
+
+  if (!patientData) {
+     return (
+      <div className="flex-1 space-y-6 p-4 md:p-6 text-center">
+        <h1 className="text-3xl font-bold font-headline">Welcome, {userProfile?.displayName}</h1>
+        <p className="text-muted-foreground">Your patient dashboard is being set up. Please check back later.</p>
+        <p className="text-sm text-muted-foreground">(This view is shown because your user role does not have patient data).</p>
+      </div>
     );
   }
 
@@ -157,7 +168,7 @@ export default function PatientDashboard() {
           <CardDescription>Weekly mood states and stress levels. <Badge variant="destructive" className="ml-2 animate-pulse">AI Alert: Burnout Imminent</Badge></CardDescription>
         </CardHeader>
         <CardContent className="h-80">
-          <MoodTrackerChart />
+          <MoodTrackerChart data={patientData.moodTrackerData} loading={loading} />
         </CardContent>
       </Card>
     </div>

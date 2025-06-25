@@ -1,3 +1,4 @@
+
 "use client";
 
 import {
@@ -15,33 +16,26 @@ import {
   ChartTooltip,
   ChartContainer,
 } from "@/components/ui/chart";
-import { collection, query, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase/client";
-import { useAuth } from "@/context/auth-context";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import type { MoodTrackerDataPoint } from "@/lib/types";
 import { Skeleton } from "../ui/skeleton";
 
-export function MoodTrackerChart() {
-  const { user } = useAuth();
-  const [data, setData] = useState<MoodTrackerDataPoint[]>([]);
-  const [loading, setLoading] = useState(true);
+interface MoodTrackerChartProps {
+  data: MoodTrackerDataPoint[];
+  loading?: boolean;
+}
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!user) return;
-      setLoading(true);
-      const q = query(collection(db, `users/${user.uid}/moodTracker`));
-      const querySnapshot = await getDocs(q);
-      const moodData = querySnapshot.docs.map(doc => doc.data() as MoodTrackerDataPoint);
-      setData(moodData);
-      setLoading(false);
-    }
-    fetchData();
-  }, [user]);
-
+export function MoodTrackerChart({ data, loading }: MoodTrackerChartProps) {
   if (loading) {
     return <Skeleton className="w-full h-full" />;
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        No mood data available.
+      </div>
+    );
   }
 
   return (
