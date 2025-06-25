@@ -246,7 +246,7 @@ export default function AdminConsole() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline"><ShieldAlert className='text-destructive' /> Anomaly Reports</CardTitle>
                     <CardDescription>AI-detected abnormal system behavior and potential security threats.</CardDescription>
-                </Header>
+                </CardHeader>
                 <CardContent className="text-center py-20">
                     <p className="text-muted-foreground">No anomalies detected in the last 24 hours.</p>
                 </CardContent>
@@ -257,7 +257,7 @@ export default function AdminConsole() {
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 font-headline"><Link2 /> MediChain Record Bridge</CardTitle>
                     <CardDescription>Shows what data is synced from/to Zizo_MediChain.</CardDescription>
-                </Header>
+                </CardHeader>
                 <CardContent className="text-center py-20">
                      <p className="text-muted-foreground">Bridge is active. 1,204 records synced today.</p>
                      <Button variant="outline" className="mt-4">View Sync Status</Button>
