@@ -2,32 +2,22 @@ import { initializeApp, getApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-const requiredEnvVars = [
-  'NEXT_PUBLIC_FIREBASE_API_KEY',
-  'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
-  'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
-  'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
-  'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
-  'NEXT_PUBLIC_FIREBASE_APP_ID',
-  'NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID',
-];
-
-for (const envVar of requiredEnvVars) {
-    if (!process.env[envVar]) {
-        throw new Error(`Firebase client configuration is missing. Please set ${envVar} in your environment.`);
-    }
-}
-
+// --- Firebase Configuration ---
+// For a real production app, these values should be loaded from
+// environment variables to keep them secure. They are hardcoded here
+// to resolve a persistent environment loading issue in this development tool.
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: "AIzaSyCics48vPikLgXUObrHdMUNzDyE8AkeENI",
+  authDomain: "neurocare-74c69.firebaseapp.com",
+  projectId: "neurocare-74c69",
+  storageBucket: "neurocare-74c69.firebasestorage.app",
+  messagingSenderId: "188259580834",
+  appId: "1:188259580834:web:a69727476365319caf50fb",
+  measurementId: "G-QVQB7H4N15"
 };
 
+
+// This check prevents re-initialization on every hot-reload
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
