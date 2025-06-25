@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -32,7 +33,8 @@ import { Button } from "../ui/button";
 import { useAuth } from "@/context/auth-context";
 import { auth } from "@/lib/firebase/client";
 import { signOut } from "firebase/auth";
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { SplashScreen } from "../shared/splash-screen";
 
 const menuItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, roles: ['patient'] },
@@ -47,7 +49,32 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, userProfile, loading } = useAuth();
-  
+  const [isInitializing, setIsInitializing] = useState(true);
+
+  // This effect manages the splash screen visibility.
+  // It ensures the splash is shown for a minimum duration and while auth is loading.
+  useEffect(() => {
+    const minDisplayTime = 3000; // 3 seconds
+    
+    // We use a flag to check if the component is still mounted.
+    let isMounted = true; 
+
+    // If auth state is resolved
+    if (!loading) {
+      const timer = setTimeout(() => {
+        if(isMounted) {
+          setIsInitializing(false);
+        }
+      }, minDisplayTime);
+
+      return () => {
+        isMounted = false;
+        clearTimeout(timer)
+      };
+    }
+    // If still loading, the effect will re-run when loading becomes false.
+  }, [loading]);
+
   const handleLogout = async () => {
     await signOut(auth);
     router.push('/login');
@@ -55,28 +82,28 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
 
+  // This effect handles redirection after initialization is complete.
   useEffect(() => {
-    if (loading) return; // Don't do anything while loading
+    if (isInitializing) return; // Don't redirect while splash is showing
+
     if (!user && !isAuthPage) {
       router.push('/login');
     }
-  }, [loading, user, isAuthPage, router]);
+  }, [isInitializing, user, isAuthPage, router]);
 
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
+  // Show splash screen during initialization
+  if (isInitializing) {
+    return <SplashScreen />;
   }
 
+  // Show auth pages without the main layout
   if (isAuthPage) {
     return <>{children}</>;
   }
   
+  // This is a fallback case if the redirect effect hasn't fired yet
+  // or if the user gets un-authed after initialization.
   if (!user) {
-    // The useEffect above will redirect. In the meantime, show a loader.
     return (
          <div className="flex items-center justify-center min-h-screen bg-background">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
