@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase/client';
 import type { UserProfile } from '@/lib/types';
 
@@ -29,17 +29,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setLoading(true);
       setUser(user);
       if (user) {
-        const userDocRef = doc(db, 'users', user.uid);
-        // Use onSnapshot to listen for real-time updates to user profile
-        const unsubSnapshot = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            setUserProfile(docSnap.data() as UserProfile);
-          } else {
+        try {
+            const userDocRef = doc(db, 'users', user.uid);
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+                setUserProfile(docSnap.data() as UserProfile);
+            } else {
+                setUserProfile(null);
+            }
+        } catch (error) {
+            console.error("Error fetching user profile:", error);
             setUserProfile(null);
-          }
-          setLoading(false);
-        });
-        return () => unsubSnapshot(); // Cleanup snapshot listener
+        } finally {
+            setLoading(false);
+        }
       } else {
         setUserProfile(null);
         setLoading(false);

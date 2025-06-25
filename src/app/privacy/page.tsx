@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/table';
 import { useAuth } from '@/context/auth-context';
 import { db } from '@/lib/firebase/client';
-import { doc, onSnapshot, updateDoc, collection, getDocs, query } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, query } from 'firebase/firestore';
 import type { PrivacySettings, AccessLog } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -37,34 +37,39 @@ export default function PrivacyConsole() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!user) return;
-
-        setLoading(true);
-        // Listener for privacy settings
-        const userDocRef = doc(db, 'users', user.uid);
-        const unsubscribeSettings = onSnapshot(userDocRef, (docSnap) => {
-            if (docSnap.exists()) {
-                setSettings(docSnap.data().privacySettings as PrivacySettings);
-            } else {
-                setSettings(null);
-            }
+        if (!user) {
             setLoading(false);
-        });
+            return;
+        };
 
-        // Fetch access logs once
-        const fetchLogs = async () => {
-            const logsQuery = query(collection(db, `users/${user.uid}/accessLogs`));
-            const logsSnapshot = await getDocs(logsQuery);
-            const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccessLog));
-            setAccessLogs(logsData);
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                // Fetch privacy settings once
+                const userDocRef = doc(db, 'users', user.uid);
+                const userDocSnap = await getDoc(userDocRef);
+                if (userDocSnap.exists()) {
+                    setSettings(userDocSnap.data().privacySettings as PrivacySettings);
+                } else {
+                    setSettings(null);
+                }
+
+                // Fetch access logs once
+                const logsQuery = query(collection(db, `users/${user.uid}/accessLogs`));
+                const logsSnapshot = await getDocs(logsQuery);
+                const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AccessLog));
+                setAccessLogs(logsData);
+            } catch (error) {
+                console.error("Error fetching privacy data:", error);
+                toast({ title: "Error", description: "Could not load privacy data.", variant: "destructive" });
+            } finally {
+                setLoading(false);
+            }
         };
         
-        fetchLogs();
+        fetchData();
 
-        return () => {
-            unsubscribeSettings();
-        };
-    }, [user]);
+    }, [user, toast]);
 
     const handleSettingChange = async (key: keyof PrivacySettings, value: boolean) => {
         if (!user || !settings) return;
