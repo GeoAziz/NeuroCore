@@ -1,21 +1,19 @@
 import admin from 'firebase-admin';
+// The 'json' extension is automatically resolved by Next.js/TypeScript
+// when 'resolveJsonModule' is true in tsconfig.json.
+import serviceAccount from '../../../serviceAccountKey.json';
 
 // This prevents initialization on every hot-reload in development
 if (!admin.apps.length) {
-  const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON_BASE64;
-  
-  if (!serviceAccountJson) {
-    throw new Error('Firebase service account credentials are not set in environment variables. Please set FIREBASE_SERVICE_ACCOUNT_JSON_BASE64.');
-  }
-  
   try {
-    const serviceAccount = JSON.parse(Buffer.from(serviceAccountJson, 'base64').toString('utf-8'));
     admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
+        // The type assertion is needed because TypeScript can't infer the
+        // precise structure of the imported JSON file.
+        credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
     });
   } catch (error: any) {
-    console.error("Failed to parse or initialize Firebase Admin SDK:", error.message);
-    throw new Error("Could not initialize Firebase Admin SDK. The FIREBASE_SERVICE_ACCOUNT_JSON_BASE64 environment variable is likely malformed or missing.");
+    console.error("Failed to initialize Firebase Admin SDK:", error.message);
+    throw new Error("Could not initialize Firebase Admin SDK. Make sure serviceAccountKey.json is present in the project root and correctly formatted.");
   }
 }
 
