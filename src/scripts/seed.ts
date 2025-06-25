@@ -58,7 +58,12 @@ async function seed() {
     usersToSeed.map(async (user) => {
       try {
         const userRecord = await auth.getUserByEmail(user.email);
-        console.log(`User ${user.email} already exists. Updating...`);
+        console.log(`User ${user.email} already exists. Updating password...`);
+        // Forcefully update the password to ensure it's correct and script is idempotent.
+        await auth.updateUser(userRecord.uid, {
+            password: user.password,
+            displayName: user.displayName,
+        });
         return userRecord;
       } catch (error: any) {
         if (error.code === 'auth/user-not-found') {
@@ -116,13 +121,16 @@ async function seed() {
   }
 
   sessionLogs.forEach(log => {
-      batch.set(firestore.collection('users').doc(patientRecord.uid).collection('sessionLogs').doc(), log);
+      const docRef = firestore.collection('users').doc(patientRecord.uid).collection('sessionLogs').doc();
+      batch.set(docRef, log);
   });
   accessLogs.forEach(log => {
-      batch.set(firestore.collection('users').doc(patientRecord.uid).collection('accessLogs').doc(), log);
+       const docRef = firestore.collection('users').doc(patientRecord.uid).collection('accessLogs').doc();
+      batch.set(docRef, log);
   });
   journalEntries.forEach(entry => {
-      batch.set(firestore.collection('users').doc(patientRecord.uid).collection('journalEntries').doc(), entry);
+       const docRef = firestore.collection('users').doc(patientRecord.uid).collection('journalEntries').doc();
+      batch.set(docRef, entry);
   });
 
   // --- Seed Global Collections ---
@@ -135,3 +143,4 @@ async function seed() {
 }
 
 seed().catch(console.error);
+
